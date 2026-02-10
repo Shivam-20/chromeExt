@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Analyzer Pro - Settings</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e4e4e7;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      color: white;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: #71717a;
+      margin-bottom: 30px;
+    }
+
+    .section {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .section h2 {
+      font-size: 1.1rem;
+      color: white;
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      color: #a1a1aa;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: white;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: #667eea;
+    }
+
+    button {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+    }
+
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .checkbox-group input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+    }
+
+    .alert-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .alert-item {
+      background: rgba(255,255,255,0.05);
+      padding: 12px;
+      border-radius: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .alert-item span {
+      color: #a1a1aa;
+      font-size: 0.85rem;
+    }
+
+    .alert-item button {
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .watchlist-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .watchlist-item {
+      background: rgba(102, 126, 234, 0.2);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: #a5b4fc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .watchlist-item button {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 1rem;
+      color: #a5b4fc;
+    }
+
+    .success-msg {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      color: #86efac;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 16px;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>⚙️ Settings</h1>
+    <p class="subtitle">Configure your Stock Analyzer Pro extension</p>
+
+    <div class="section">
+      <h2>🔑 API Configuration</h2>
+      <div class="form-group">
+        <label for="apiKey">Z.AI API Key</label>
+        <input type="text" id="apiKey" placeholder="Enter your Z.AI API key">
+      </div>
+      <button id="saveApi">Save API Key</button>
+      <div id="apiSuccess" class="success-msg hidden">API key saved successfully!</div>
+    </div>
+
+    <div class="section">
+      <h2>🔔 Price Alerts</h2>
+      <div class="form-group">
+        <label>Alert Check Frequency</label>
+        <select id="alertFrequency">
+          <option value="15">Every 15 minutes</option>
+          <option value="30">Every 30 minutes</option>
+          <option value="60">Every hour</option>
+        </select>
+      </div>
+      <div class="form-group checkbox-group">
+        <input type="checkbox" id="soundAlerts">
+        <label for="soundAlerts">Enable sound notifications</label>
+      </div>
+      <button id="saveAlertSettings">Save Alert Settings</button>
+      <div id="alertList" class="alert-list"></div>
+    </div>
+
+    <div class="section">
+      <h2>⭐ Watchlist</h2>
+      <div id="watchlistList" class="watchlist-list"></div>
+    </div>
+
+    <div class="section">
+      <h2>🎨 Display Preferences</h2>
+      <div class="form-group checkbox-group">
+        <input type="checkbox" id="darkMode" checked>
+        <label for="darkMode">Dark mode</label>
+      </div>
+      <div class="form-group checkbox-group">
+        <input type="checkbox" id="showScores" checked>
+        <label for="showScores">Show analysis scores</label>
+      </div>
+      <div class="form-group checkbox-group">
+        <input type="checkbox" id="autoRefresh">
+        <label for="autoRefresh">Auto-refresh data every 5 minutes</label>
+      </div>
+      <button id="saveDisplaySettings">Save Display Settings</button>
+    </div>
+
+    <div class="section">
+      <h2>💾 Data Management</h2>
+      <div class="form-group">
+        <button id="exportData" style="background: rgba(59, 130, 246, 0.3); margin-right: 10px;">Export Data</button>
+        <button id="clearData" style="background: rgba(239, 68, 68, 0.3);">Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

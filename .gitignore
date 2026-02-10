@@ -1,0 +1,94 @@
+# OS and System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Editor and IDE Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+.history/
+
+# Build and Distribution
+*.crx
+*.pem
+dist/
+build/
+out/
+release/
+node_modules/
+
+# API Keys and Secrets
+*.env
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.key
+secrets/
+credentials/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.temp
+.cache/
+
+# Package Manager (if using npm/yarn)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# Chrome Extension Specific
+*.crx
+*.pem
+*.zip
+
+# Documentation (optional - uncomment if not tracking)
+# README.md
+# CHANGELOG.md
+# PROMPT_IMPROVEMENTS.md
+# PROMPT_OPTIMIZATION.md
+
+# Icons (if using external tools)
+create-icons.js
+icon-source/
+icons/create-icons.js
+
+# Test Files
+test.html
+test_extension.py
+test-extension.py
+
+# Development Notes (optional)
+notes.md
+TODO.md

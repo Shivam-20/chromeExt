@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock & Fund Analyzer Pro</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-top">
+        <h1>📊 Stock Analyzer Pro</h1>
+        <button id="settingsBtn" class="icon-btn">⚙️</button>
+      </div>
+      <p class="subtitle">AI-powered insights</p>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="analyze">Analyze</button>
+      <button class="tab-btn" data-tab="portfolio">Portfolio</button>
+      <button class="tab-btn" data-tab="compare">Compare</button>
+      <button class="tab-btn" data-tab="news">News</button>
+    </nav>
+
+    <div class="tab-content" id="analyze-tab">
+      <div class="input-section">
+        <input type="text" id="symbolInput" placeholder="Enter symbol (e.g., AAPL, VFIAX)">
+        <button id="analyzeBtn">🔍 Analyze</button>
+      </div>
+
+      <div class="quick-symbols">
+        <span class="quick-label">Quick:</span>
+        <button class="quick-btn" data-symbol="AAPL">AAPL</button>
+        <button class="quick-btn" data-symbol="GOOGL">GOOGL</button>
+        <button class="quick-btn" data-symbol="TSLA">TSLA</button>
+        <button class="quick-btn" data-symbol="VFIAX">VFIAX</button>
+      </div>
+
+      <div class="custom-prompt-section">
+        <div class="prompt-header">
+          <div class="header-left">
+            <span>🎯 Custom Analysis Focus</span>
+            <span class="prompt-hint" title="Add specific focus areas to get tailored analysis">💡</span>
+          </div>
+          <button id="togglePrompt" class="toggle-btn">+ Add</button>
+        </div>
+        <div id="promptContainer" class="hidden">
+          <div class="prompt-instructions">
+            Describe what you want to focus on in your analysis. Use the ✨ Optimize button to improve your prompt for better results.
+          </div>
+          <textarea id="customPrompt" placeholder="Add specific questions or focus areas (e.g., 'Focus on dividend growth', 'Compare to sector average', 'Analyze for long-term hold')"></textarea>
+          <div class="prompt-actions">
+            <button id="optimizePrompt" class="optimize-btn" title="Improve your prompt for better results">✨ Optimize Prompt</button>
+            <button id="clearPrompt" class="clear-btn" title="Clear the prompt">🗑️ Clear</button>
+          </div>
+          <div class="prompt-suggestions">
+            <span class="prompt-label">Suggested:</span>
+            <button class="prompt-tag" data-text="Focus on dividend growth">Dividend Growth</button>
+            <button class="prompt-tag" data-text="Analyze for long-term investment">Long-term</button>
+            <button class="prompt-tag" data-text="Compare to sector average">Sector Compare</button>
+            <button class="prompt-tag" data-text="Risk assessment focus">Risk Focus</button>
+            <button class="prompt-tag" data-text="Evaluate for swing trading">Swing Trading</button>
+            <button class="prompt-tag" data-text="Compare to S&P 500 benchmark">vs S&P 500</button>
+          </div>
+          <div id="optimizedPromptContainer" class="optimized-section hidden">
+            <div class="optimized-header">
+              <span>✨ Optimized Prompt</span>
+              <div class="optimized-actions">
+                <button id="acceptOptimized" class="accept-btn">✓ Accept</button>
+                <button id="rejectOptimized" class="reject-btn">✕ Reject</button>
+              </div>
+            </div>
+            <div id="optimizedPrompt" class="optimized-text"></div>
+            <div id="optimizationExplanation" class="optimization-explanation"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="loading" class="hidden">
+        <div class="spinner"></div>
+        <p>Analyzing with AI...</p>
+      </div>
+
+      <div id="results" class="hidden">
+        <div class="symbol-info">
+          <div>
+            <h2 id="symbolName">--</h2>
+            <span id="symbolType" class="badge">--</span>
+          </div>
+          <div class="watchlist-actions">
+            <button id="addToWatchlist" class="action-btn">⭐ Watch</button>
+            <button id="setAlert" class="action-btn">🔔 Alert</button>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div class="metric">
+            <label>Price</label>
+            <span id="price">--</span>
+          </div>
+          <div class="metric">
+            <label>Change</label>
+            <span id="change">--</span>
+          </div>
+          <div class="metric">
+            <label>Volume</label>
+            <span id="volume">--</span>
+          </div>
+        </div>
+
+        <div class="metrics-extended">
+          <div class="metric">
+            <label>Market Cap</label>
+            <span id="marketCap">--</span>
+          </div>
+          <div class="metric">
+            <label>P/E Ratio</label>
+            <span id="peRatio">--</span>
+          </div>
+          <div class="metric">
+            <label>52W High</label>
+            <span id="high52w">--</span>
+          </div>
+          <div class="metric">
+            <label>52W Low</label>
+            <span id="low52w">--</span>
+          </div>
+        </div>
+
+        <div class="score-section">
+          <div class="score-card">
+            <div class="score-value" id="overallScore">--</div>
+            <div class="score-label">Overall Score</div>
+          </div>
+          <div class="score-breakdown">
+            <div class="score-item">
+              <span class="label">Growth</span>
+              <div class="bar">
+                <div class="fill" id="growthBar" style="width: 0%"></div>
+              </div>
+              <span class="value" id="growthScore">--</span>
+            </div>
+            <div class="score-item">
+              <span class="label">Value</span>
+              <div class="bar">
+                <div class="fill" id="valueBar" style="width: 0%"></div>
+              </div>
+              <span class="value" id="valueScore">--</span>
+            </div>
+            <div class="score-item">
+              <span class="label">Safety</span>
+              <div class="bar">
+                <div class="fill" id="safetyBar" style="width: 0%"></div>
+              </div>
+              <span class="value" id="safetyScore">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="suggestions">
+          <h3>💡 AI Suggestions</h3>
+          <div id="suggestionList"></div>
+        </div>
+
+        <div class="analysis">
+          <h3>📈 Analysis</h3>
+          <p id="analysisText">--</p>
+        </div>
+
+        <div class="targets">
+          <h3>🎯 Price Targets</h3>
+          <div class="target-range">
+            <span class="target-label">Bear Case</span>
+            <span id="bearTarget" class="target-price">--</span>
+          </div>
+          <div class="target-range">
+            <span class="target-label">Base Case</span>
+            <span id="baseTarget" class="target-price">--</span>
+          </div>
+          <div class="target-range">
+            <span class="target-label">Bull Case</span>
+            <span id="bullTarget" class="target-price">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content hidden" id="portfolio-tab">
+      <div class="portfolio-section">
+        <div class="portfolio-header">
+          <h3>📁 My Portfolio</h3>
+          <button id="addHolding" class="add-btn">+ Add</button>
+        </div>
+        <div id="portfolioList" class="portfolio-list">
+          <p class="empty-state">No holdings yet. Add stocks to track!</p>
+        </div>
+        <div class="portfolio-summary">
+          <div class="summary-item">
+            <span>Total Value</span>
+            <span id="totalValue">$0.00</span>
+          </div>
+          <div class="summary-item">
+            <span>Today's Change</span>
+            <span id="totalChange">$0.00 (0%)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content hidden" id="compare-tab">
+      <div class="compare-section">
+        <div class="compare-inputs">
+          <input type="text" id="compare1" placeholder="Symbol 1">
+          <input type="text" id="compare2" placeholder="Symbol 2">
+          <button id="compareBtn">Compare</button>
+        </div>
+        <div id="compareResults" class="hidden">
+          <div class="comparison-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th id="comp1Name">--</th>
+                  <th id="comp2Name">--</th>
+                  <th>Winner</th>
+                </tr>
+              </thead>
+              <tbody id="comparisonBody"></tbody>
+            </table>
+          </div>
+          <div class="comparison-summary">
+            <h3>📊 Verdict</h3>
+            <p id="comparisonVerdict">--</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content hidden" id="news-tab">
+      <div class="news-section">
+        <h3>📰 Market News</h3>
+        <div id="newsList" class="news-list">
+          <p class="empty-state">Loading news...</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="error" class="error hidden"></div>
+  </div>
+
+  <div id="alertModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>🔔 Set Price Alert</h3>
+      <input type="text" id="alertSymbol" readonly>
+      <input type="number" id="alertPrice" placeholder="Target price">
+      <select id="alertType">
+        <option value="above">Price Above</option>
+        <option value="below">Price Below</option>
+      </select>
+      <div class="modal-actions">
+        <button id="saveAlert" class="btn-primary">Save</button>
+        <button id="cancelAlert" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="holdingModal" class="modal hidden">
+    <div class="modal-content">
+      <h3>➕ Add Holding</h3>
+      <input type="text" id="holdingSymbol" placeholder="Symbol (e.g., AAPL)">
+      <input type="number" id="holdingShares" placeholder="Number of shares">
+      <input type="number" id="holdingPrice" placeholder="Buy price per share">
+      <div class="modal-actions">
+        <button id="saveHolding" class="btn-primary">Add</button>
+        <button id="cancelHolding" class="btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
