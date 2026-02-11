@@ -1,4 +1,4 @@
-const ZAI_API_URL = 'https://api.z.ai/v1/chat/completions';
+const ZAI_API_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
 
 const CONFIG = {
   ALERT_CHECK_INTERVAL: 30,
@@ -6,6 +6,29 @@ const CONFIG = {
     PRICE_CHECK: 0.2
   }
 };
+
+/**
+ * Gets API key from chrome storage
+ * @returns {Promise<string>} API key
+ */
+async function getApiKey() {
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.storage.local.get(['apiKey'], resolve);
+    });
+    
+    const apiKey = result.apiKey || 'YOUR_ZAI_API_KEY';
+    
+    if (apiKey === 'YOUR_ZAI_API_KEY') {
+      console.warn('Background: API key is still placeholder');
+    }
+    
+    return apiKey;
+  } catch (error) {
+    console.error('Background: Error getting API key:', error);
+    return 'YOUR_ZAI_API_KEY';
+  }
+}
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'quickAnalyze') {
@@ -129,7 +152,7 @@ IMPORTANT:
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model: 'glm-4.7',
       messages: [
         { 
           role: 'system', 

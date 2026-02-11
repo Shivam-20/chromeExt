@@ -1,10 +1,10 @@
 /**
  * Stock & Fund Analyzer Pro - Popup Script
  * Main logic for stock analysis, portfolio management, and price alerts
- * @version 2.1.0
+ * @version 2.2.0
  */
 
-const ZAI_API_URL = 'https://api.z.ai/v1/chat/completions';
+const ZAI_API_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
 const SYMBOL_REGEX = /^[A-Z]{1,5}$/;
 
 const CONFIG = {
@@ -24,10 +24,20 @@ let analysisCache = new Map();
 let newsCache = null;
 let newsCacheTime = 0;
 
+/**
+ * Gets API key from chrome storage
+ * @returns {Promise<string>} API key or placeholder
+ */
 async function getApiKey() {
   try {
     const result = await chrome.storage.local.get(['apiKey']);
-    return result.apiKey || 'YOUR_ZAI_API_KEY';
+    const apiKey = result.apiKey || 'YOUR_ZAI_API_KEY';
+    
+    if (apiKey === 'YOUR_ZAI_API_KEY') {
+      console.warn('API key is still placeholder. User needs to set actual key.');
+    }
+    
+    return apiKey;
   } catch (error) {
     console.error('Error getting API key:', error);
     return 'YOUR_ZAI_API_KEY';
@@ -134,9 +144,24 @@ function setupPortfolio() {
     document.getElementById('holdingModal').classList.remove('hidden');
   });
 
-  document.getElementById('saveHolding').addEventListener('click', saveHolding());
+  document.getElementById('saveHolding').addEventListener('click', () => saveHolding());
   document.getElementById('cancelHolding').addEventListener('click', () => {
     document.getElementById('holdingModal').classList.add('hidden');
+  });
+}
+
+function setupComparison() {
+  document.getElementById('compareBtn').addEventListener('click', handleComparison);
+}
+
+function setupNews() {
+  loadMarketNews();
+}
+
+function setupModals() {
+  document.getElementById('saveAlert').addEventListener('click', saveAlert);
+  document.getElementById('cancelAlert').addEventListener('click', () => {
+    document.getElementById('alertModal').classList.add('hidden');
   });
 }
 
@@ -306,7 +331,7 @@ Output: "Analyze the dividend history, yield, and sustainability. Evaluate payou
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model: 'glm-4.7',
       messages: [
         {
           role: 'system',
@@ -371,13 +396,18 @@ async function handleAnalyze() {
     updateWatchlistButton(symbol);
   } catch (error) {
     console.error('Analysis error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     
     if (error.message.includes('API') || error.message.includes('fetch')) {
       showError('Unable to connect to analysis service. Please check your API key and try again.');
     } else if (error.message.includes('Invalid') || error.message.includes('format')) {
-      showError('Received invalid data from analysis service. Please try again.');
+      showError('Received invalid data from analysis service.');
     } else {
-      showError('Analysis failed. Please try again later.');
+      showError(`Analysis failed: ${error.message}`);
     }
   } finally {
     showLoading(false);
@@ -467,7 +497,7 @@ Return ONLY the JSON object.`;
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model: 'glm-4.7',
       messages: [
         { 
           role: 'system', 
@@ -496,8 +526,18 @@ Current date: ${currentDate}`
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || 'AI API request failed');
+    const errorText = await response.text();
+    let errorMessage = 'AI API request failed';
+    
+    try {
+      const errorData = JSON.parse(errorText);
+      errorMessage = errorData.error?.message || errorMessage;
+    } catch (e) {
+      errorMessage = errorText || errorMessage;
+    }
+    
+    console.error('API Error Response:', errorMessage);
+    throw new Error(errorMessage);
   }
 
   const data = await response.json();
@@ -926,7 +966,7 @@ Use real recent news when available. If real data not accessible, create highly 
       'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4',
+      model: 'glm-4.7',
       messages: [
         { 
           role: 'system', 
