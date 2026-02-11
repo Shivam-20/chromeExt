@@ -1,7 +1,7 @@
 /**
  * Stock & Fund Analyzer Pro - Popup Script
  * Main logic for stock analysis, portfolio management, and price alerts
- * @version 2.2.1
+ * @version 2.2.2
  */
 
 const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
@@ -348,7 +348,8 @@ Output: "Analyze the dividend history, yield, and sustainability. Evaluate payou
   }
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
+  const message = data.choices[0].message;
+  const content = message.content || message.reasoning_content;
   const jsonMatch = content.match(/\{[\s\S]*\}/);
 
   if (!jsonMatch) {
@@ -541,7 +542,9 @@ Current date: ${currentDate}`
   }
 
   const data = await response.json();
-  const content = data.choices[0]?.message?.content;
+  const message = data.choices[0]?.message;
+  
+  const content = message?.content || message?.reasoning_content;
   
   if (!content) {
     throw new Error('Invalid API response: No content returned');
@@ -996,7 +999,9 @@ Return ONLY valid JSON arrays.`
   }
 
   const data = await response.json();
-  const content = data.choices[0]?.message?.content;
+  const message = data.choices[0]?.message;
+  
+  const content = message?.content || message?.reasoning_content;
   
   if (!content) {
     throw new Error('Invalid news API response: No content returned');

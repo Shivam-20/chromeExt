@@ -176,7 +176,9 @@ You have access to stock market data and can provide real-time prices for major 
   }
 
   const data = await response.json();
-  const content = data.choices[0]?.message?.content;
+  const message = data.choices[0]?.message;
+  
+  const content = message?.content || message?.reasoning_content;
   
   if (!content) {
     throw new Error('Invalid price API response: No content returned');
