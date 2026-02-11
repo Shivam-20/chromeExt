@@ -1,7 +1,7 @@
 /**
  * Stock & Fund Analyzer Pro - Popup Script
  * Main logic for stock analysis, portfolio management, and price alerts
- * @version 2.2.2
+ * @version 2.2.3
  */
 
 const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
@@ -14,7 +14,17 @@ const CONFIG = {
     NEWS: 0.6,
     OPTIMIZATION: 0.5
   },
-  CACHE_DURATION: 5 * 60 * 1000 // 5 minutes cache
+  CACHE_DURATION: 10 * 60 * 1000, // 10 minutes cache (increased from 5)
+  RETRY: {
+    MAX_ATTEMPTS: 3,
+    BASE_DELAY: 1000, // 1 second
+    MAX_DELAY: 10000, // 10 seconds
+    BACKOFF_MULTIPLIER: 2
+  },
+  RATE_LIMIT: {
+    WINDOW_MS: 60000, // 1 minute window
+    MAX_REQUESTS: 10 // Max requests per window
+  }
 };
 
 let currentSymbol = null;
@@ -23,6 +33,12 @@ let cachedElements = null;
 let analysisCache = new Map();
 let newsCache = null;
 let newsCacheTime = 0;
+
+// Request queue and rate limiting
+let requestQueue = [];
+let isProcessingQueue = false;
+let requestTimestamps = [];
+let pendingRequests = new Map(); // For deduplication
 
 /**
  * Gets API key from chrome storage
@@ -42,6 +58,168 @@ async function getApiKey() {
     console.error('Error getting API key:', error);
     return 'YOUR_ZAI_API_KEY';
   }
+}
+
+/**
+ * Rate limiting helper - checks if we can make a request
+ * @returns {boolean} Whether we can make a request
+ */
+function canMakeRequest() {
+  const now = Date.now();
+  // Remove timestamps older than the window
+  requestTimestamps = requestTimestamps.filter(
+    timestamp => now - timestamp < CONFIG.RATE_LIMIT.WINDOW_MS
+  );
+
+  return requestTimestamps.length < CONFIG.RATE_LIMIT.MAX_REQUESTS;
+}
+
+/**
+ * Records a request timestamp for rate limiting
+ */
+function recordRequest() {
+  requestTimestamps.push(Date.now());
+}
+
+/**
+ * Gets time until next request is allowed
+ * @returns {number} Milliseconds to wait
+ */
+function getTimeUntilNextRequest() {
+  const now = Date.now();
+  const windowStart = now - CONFIG.RATE_LIMIT.WINDOW_MS;
+
+  if (requestTimestamps.length === 0) return 0;
+
+  // Find the oldest timestamp in the window
+  const oldestInWindow = requestTimestamps.find(ts => ts > windowStart);
+  if (!oldestInWindow) return 0;
+
+  // Time until that timestamp expires
+  return oldestInWindow + CONFIG.RATE_LIMIT.WINDOW_MS - now;
+}
+
+/**
+ * Sleep utility
+ * @param {number} ms - Milliseconds to sleep
+ */
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Retry wrapper with exponential backoff
+ * @param {Function} fn - Async function to retry
+ * @param {string} operation - Operation name for logging
+ * @returns {Promise<any>} Result of the function
+ */
+async function retryWithBackoff(fn, operation = 'operation') {
+  let lastError;
+
+  for (let attempt = 1; attempt <= CONFIG.RETRY.MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on non-rate-limit errors
+      if (!error.message?.toLowerCase().includes('rate limit') &&
+          !error.message?.toLowerCase().includes('429')) {
+        throw error;
+      }
+
+      // Don't sleep after last attempt
+      if (attempt < CONFIG.RETRY.MAX_ATTEMPTS) {
+        const delay = Math.min(
+          CONFIG.RETRY.BASE_DELAY * Math.pow(CONFIG.RETRY.BACKOFF_MULTIPLIER, attempt - 1),
+          CONFIG.RETRY.MAX_DELAY
+        );
+
+        console.warn(`${operation} failed (attempt ${attempt}/${CONFIG.RETRY.MAX_ATTEMPTS}), retrying in ${delay}ms...`);
+
+        // Show user feedback
+        showError(`Rate limit hit. Retrying in ${Math.round(delay / 1000)}s... (attempt ${attempt}/${CONFIG.RETRY.MAX_ATTEMPTS})`);
+
+        await sleep(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Request queue processor - manages concurrent requests
+ */
+async function processQueue() {
+  if (isProcessingQueue || requestQueue.length === 0) return;
+
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    // Check rate limit
+    if (!canMakeRequest()) {
+      const waitTime = getTimeUntilNextRequest();
+      console.log(`Rate limit reached. Waiting ${Math.round(waitTime / 1000)}s...`);
+      await sleep(waitTime);
+    }
+
+    const { fn, resolve, reject, operation } = requestQueue.shift();
+
+    try {
+      recordRequest();
+      const result = await retryWithBackoff(fn, operation);
+      resolve(result);
+    } catch (error) {
+      reject(error);
+    }
+  }
+
+  isProcessingQueue = false;
+}
+
+/**
+ * Queued fetch wrapper with rate limiting and retries
+ * @param {Function} fn - Async function to execute
+ * @param {string} operation - Operation name
+ * @returns {Promise<any>} Result
+ */
+async function queuedRequest(fn, operation = 'API request') {
+  return new Promise((resolve, reject) => {
+    requestQueue.push({ fn, resolve, reject, operation });
+    processQueue();
+  });
+}
+
+/**
+ * Generate cache key for deduplication
+ * @param {string} type - Request type
+ * @param {string} symbol - Symbol
+ * @param {string} customPrompt - Custom prompt
+ * @returns {string} Cache key
+ */
+function getCacheKey(type, symbol, customPrompt = '') {
+  return `${type}:${symbol}:${customPrompt}`;
+}
+
+/**
+ * Check for duplicate pending requests
+ * @param {string} key - Cache key
+ * @returns {Promise|null} Pending promise if exists
+ */
+function getPendingRequest(key) {
+  return pendingRequests.get(key);
+}
+
+/**
+ * Store pending request
+ * @param {string} key - Cache key
+ * @param {Promise} promise - Pending promise
+ */
+function setPendingRequest(key, promise) {
+  pendingRequests.set(key, promise);
+  // Clean up after resolution
+  promise.finally(() => pendingRequests.delete(key));
 }
 
 function cacheElements() {
@@ -402,11 +580,16 @@ async function handleAnalyze() {
       stack: error.stack,
       name: error.name
     });
-    
-    if (error.message.includes('API') || error.message.includes('fetch')) {
-      showError('Unable to connect to analysis service. Please check your API key and try again.');
-    } else if (error.message.includes('Invalid') || error.message.includes('format')) {
-      showError('Received invalid data from analysis service.');
+
+    // Improved error messages
+    const errorMsg = error.message?.toLowerCase() || '';
+
+    if (errorMsg.includes('rate limit')) {
+      showError('Rate limit reached. Please wait 1-2 minutes before analyzing again. Using cached data when available.');
+    } else if (errorMsg.includes('api') || errorMsg.includes('fetch') || errorMsg.includes('network')) {
+      showError('Unable to connect to analysis service. Please check your internet connection and API key.');
+    } else if (errorMsg.includes('invalid') || errorMsg.includes('format')) {
+      showError('Received invalid data from analysis service. Please try again.');
     } else {
       showError(`Analysis failed: ${error.message}`);
     }
@@ -416,7 +599,7 @@ async function handleAnalyze() {
 }
 
 /**
- * Performs AI analysis of a stock/fund symbol
+ * Performs AI analysis of a stock/fund symbol with caching and deduplication
  * @param {string} symbol - Stock/fund symbol
  * @returns {Promise<Object>} Analysis data with metrics, scores, and suggestions
  * @throws {Error} If API request fails or returns invalid data
@@ -424,11 +607,30 @@ async function handleAnalyze() {
 async function analyzeWithAI(symbol) {
   const currentDate = new Date().toISOString().split('T')[0];
   const customPrompt = document.getElementById('customPrompt').value.trim();
-  const apiKey = await getApiKey();
-  
-  let customFocus = '';
-  if (customPrompt) {
-    customFocus = `
+
+  // Check cache first
+  const cacheKey = getCacheKey('analysis', symbol, customPrompt);
+  const cachedItem = analysisCache.get(cacheKey);
+
+  if (cachedItem && (Date.now() - cachedItem.timestamp < CONFIG.CACHE_DURATION)) {
+    console.log(`Using cached analysis for ${symbol}`);
+    return cachedItem.data;
+  }
+
+  // Check for duplicate pending requests
+  const pendingRequest = getPendingRequest(cacheKey);
+  if (pendingRequest) {
+    console.log(`Waiting for pending analysis request for ${symbol}`);
+    return pendingRequest;
+  }
+
+  // Create new request with queue and retry
+  const requestPromise = queuedRequest(async () => {
+    const apiKey = await getApiKey();
+
+    let customFocus = '';
+    if (customPrompt) {
+      customFocus = `
 
 CUSTOM ANALYSIS FOCUS:
 The user has requested specific focus areas for this analysis:
@@ -439,9 +641,9 @@ Please prioritize these aspects in your:
 2. Analysis summary - address the specific concerns mentioned
 3. Scores - weight scores according to the focus area
 `;
-  }
-  
-  const prompt = `You are a senior financial analyst. Analyze ${symbol} thoroughly and provide the following data:
+    }
+
+    const prompt = `You are a senior financial analyst. Analyze ${symbol} thoroughly and provide the following data:
 
 CRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanations outside JSON.
 
@@ -491,18 +693,18 @@ ${customFocus}
 
 Return ONLY the JSON object.`;
 
-  const response = await fetch(ZAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'glm-4.7',
-      messages: [
-        { 
-          role: 'system', 
-          content: `You are a Wall Street senior financial analyst with 20+ years experience. You have access to current market data and specialize in:
+    const response = await fetch(ZAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4.7',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a Wall Street senior financial analyst with 20+ years experience. You have access to current market data and specialize in:
 - Fundamental analysis (P/E, growth rates, earnings)
 - Technical analysis (trends, support/resistance, momentum)
 - Risk assessment (beta, volatility, sector exposure)
@@ -519,50 +721,67 @@ ANALYSIS GUIDELINES:
 8. When custom focus is provided, prioritize those aspects in analysis
 
 Current date: ${currentDate}`
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: CONFIG.TEMPERATURE.ANALYSIS
-    })
-  });
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: CONFIG.TEMPERATURE.ANALYSIS
+      })
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    let errorMessage = 'AI API request failed';
-    
-    try {
-      const errorData = JSON.parse(errorText);
-      errorMessage = errorData.error?.message || errorMessage;
-    } catch (e) {
-      errorMessage = errorText || errorMessage;
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = 'AI API request failed';
+
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error?.message || errorData.message || errorMessage;
+
+        // Add specific handling for rate limit
+        if (response.status === 429 || errorMessage.toLowerCase().includes('rate limit')) {
+          errorMessage = `Rate limit reached for requests. Please wait a moment before trying again.`;
+        }
+      } catch (e) {
+        errorMessage = errorText || errorMessage;
+      }
+
+      console.error('API Error Response:', { status: response.status, message: errorMessage });
+      throw new Error(errorMessage);
     }
-    
-    console.error('API Error Response:', errorMessage);
-    throw new Error(errorMessage);
-  }
 
-  const data = await response.json();
-  const message = data.choices[0]?.message;
-  
-  const content = message?.content || message?.reasoning_content;
-  
-  if (!content) {
-    throw new Error('Invalid API response: No content returned');
-  }
-  
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const data = await response.json();
+    const message = data.choices[0]?.message;
 
-  if (!jsonMatch) {
-    throw new Error('Invalid AI response format');
-  }
+    const content = message?.content || message?.reasoning_content;
 
-  const parsedData = JSON.parse(jsonMatch[0]);
-  
-  if (!parsedData || typeof parsedData !== 'object') {
-    throw new Error('Invalid parsed data structure');
-  }
-  
-  return parsedData;
+    if (!content) {
+      throw new Error('Invalid API response: No content returned');
+    }
+
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      throw new Error('Invalid AI response format');
+    }
+
+    const parsedData = JSON.parse(jsonMatch[0]);
+
+    if (!parsedData || typeof parsedData !== 'object') {
+      throw new Error('Invalid parsed data structure');
+    }
+
+    // Cache the result
+    analysisCache.set(cacheKey, {
+      data: parsedData,
+      timestamp: Date.now()
+    });
+
+    return parsedData;
+  }, `Analyze ${symbol}`);
+
+  // Track pending request
+  setPendingRequest(cacheKey, requestPromise);
+
+  return requestPromise;
 }
 
 /**
@@ -921,23 +1140,31 @@ function analyzeSentiment(title, summary) {
 }
 
 /**
- * Fetches market news from AI API with caching
+ * Fetches market news from AI API with caching and retry logic
  * @returns {Promise<Array>} Array of news items
  * @throws {Error} If API request fails or returns invalid data
  */
 async function fetchMarketNews() {
   const cacheKey = 'news';
   const now = Date.now();
-  
+
   if (newsCache && newsCacheTime && (now - newsCacheTime) < CONFIG.CACHE_DURATION) {
     console.log('Using cached news data');
     return newsCache;
   }
-  
-  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  const apiKey = await getApiKey();
-  
-  const prompt = `Provide 5 of the most important recent stock market news items that investors should know about.
+
+  // Check for duplicate pending requests
+  const pendingRequest = getPendingRequest(cacheKey);
+  if (pendingRequest) {
+    console.log('Waiting for pending news request');
+    return pendingRequest;
+  }
+
+  const requestPromise = queuedRequest(async () => {
+    const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    const apiKey = await getApiKey();
+
+    const prompt = `Provide 5 of the most important recent stock market news items that investors should know about.
 
 Focus on:
 1. Major earnings reports
@@ -962,18 +1189,18 @@ Return ONLY valid JSON array:
 News date context: ${today}
 Use real recent news when available. If real data not accessible, create highly realistic news based on current market conditions.`;
 
-  const response = await fetch(ZAI_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model: 'glm-4.7',
-      messages: [
-        { 
-          role: 'system', 
-          content: `You are a senior financial journalist working for a major news outlet. Your job is to:
+    const response = await fetch(ZAI_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4.7',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a senior financial journalist working for a major news outlet. Your job is to:
 1. Identify the most market-relevant news
 2. Write compelling, accurate headlines
 3. Provide context on why it matters
@@ -985,44 +1212,63 @@ News items should be:
 - From credible sources
 - Clearly explained
 
-Return ONLY valid JSON arrays.` 
-        },
-        { role: 'user', content: prompt }
-      ],
-      temperature: CONFIG.TEMPERATURE.NEWS
-    })
-  });
+Return ONLY valid JSON arrays.`
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: CONFIG.TEMPERATURE.NEWS
+      })
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || 'News API request failed');
-  }
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = 'News API request failed';
 
-  const data = await response.json();
-  const message = data.choices[0]?.message;
-  
-  const content = message?.content || message?.reasoning_content;
-  
-  if (!content) {
-    throw new Error('Invalid news API response: No content returned');
-  }
-  
-  const jsonMatch = content.match(/\[[\s\S]*\]/);
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error?.message || errorData.message || errorMessage;
 
-  if (!jsonMatch) {
-    throw new Error('Invalid news response format');
-  }
+        if (response.status === 429 || errorMessage.toLowerCase().includes('rate limit')) {
+          errorMessage = 'Rate limit reached for requests';
+        }
+      } catch (e) {
+        errorMessage = errorText || errorMessage;
+      }
 
-  const parsedNews = JSON.parse(jsonMatch[0]);
-  
-  if (!Array.isArray(parsedNews)) {
-    throw new Error('Invalid news data structure');
-  }
-  
-  newsCache = parsedNews;
-  newsCacheTime = now;
-  
-  return parsedNews;
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    const message = data.choices[0]?.message;
+
+    const content = message?.content || message?.reasoning_content;
+
+    if (!content) {
+      throw new Error('Invalid news API response: No content returned');
+    }
+
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+
+    if (!jsonMatch) {
+      throw new Error('Invalid news response format');
+    }
+
+    const parsedNews = JSON.parse(jsonMatch[0]);
+
+    if (!Array.isArray(parsedNews)) {
+      throw new Error('Invalid news data structure');
+    }
+
+    newsCache = parsedNews;
+    newsCacheTime = now;
+
+    return parsedNews;
+  }, 'Fetch market news');
+
+  // Track pending request
+  setPendingRequest(cacheKey, requestPromise);
+
+  return requestPromise;
 }
 
 /**
