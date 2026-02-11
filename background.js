@@ -1,4 +1,4 @@
-const ZAI_API_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
+const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
 
 const CONFIG = {
   ALERT_CHECK_INTERVAL: 30,

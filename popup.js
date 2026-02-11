@@ -1,10 +1,10 @@
 /**
  * Stock & Fund Analyzer Pro - Popup Script
  * Main logic for stock analysis, portfolio management, and price alerts
- * @version 2.2.0
+ * @version 2.2.1
  */
 
-const ZAI_API_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
+const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
 const SYMBOL_REGEX = /^[A-Z]{1,5}$/;
 
 const CONFIG = {

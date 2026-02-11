@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Stock & Fund Analyzer Pro",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Advanced AI-powered stock, mutual fund, ETF, and futures analytics with portfolio tracking, alerts, sentiment analysis, and export capabilities",
   "permissions": [
     "activeTab",
