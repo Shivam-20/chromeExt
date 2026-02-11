@@ -6,7 +6,7 @@
  */
 
 const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
-const SYMBOL_REGEX = /^[A-Z]{1,5}$/;
+const SYMBOL_REGEX = /^[A-Z]{1,15}$/; // Allow up to 15 chars for Indian stocks (e.g., HINDUNILVR, BHARTIARTL)
 
 const CONFIG = {
   TEMPERATURE: {
@@ -557,7 +557,7 @@ async function handleAnalyze() {
   }
 
   if (!SYMBOL_REGEX.test(symbol)) {
-    showError('Invalid symbol format. Use 1-5 letters only (e.g., RELIANCE, TCS, INFY).');
+    showError('Invalid symbol format. Use 1-15 letters only (e.g., RELIANCE, TCS, INFY, HDFCBANK).');
     return;
   }
 
@@ -1000,12 +1000,12 @@ async function handleComparison() {
   }
 
   if (!SYMBOL_REGEX.test(symbol1)) {
-    showError('Invalid symbol format for first stock. Use 1-5 letters only.');
+    showError('Invalid symbol format for first stock. Use 1-15 letters only.');
     return;
   }
 
   if (!SYMBOL_REGEX.test(symbol2)) {
-    showError('Invalid symbol format for second stock. Use 1-5 letters only.');
+    showError('Invalid symbol format for second stock. Use 1-15 letters only.');
     return;
   }
 
@@ -1517,7 +1517,7 @@ function saveHolding() {
   }
 
   if (!SYMBOL_REGEX.test(symbol)) {
-    showError('Invalid symbol format. Use 1-5 letters only.');
+    showError('Invalid symbol format. Use 1-15 letters only.');
     return;
   }
 

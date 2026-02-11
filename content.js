@@ -42,7 +42,7 @@ function detectSymbols() {
 
 function isValidSymbol(symbol) {
   if (EXCLUDE_WORDS.includes(symbol)) return false;
-  if (symbol.length < 2 || symbol.length > 5) return false;
+  if (symbol.length < 2 || symbol.length > 15) return false; // Allow up to 15 chars for Indian stocks
   if (!/^[A-Z]+$/.test(symbol)) return false;
   if (/^[A-Z]{1,1}[A-Z]{1,1}$/.test(symbol)) {
     return COMMON_STOCKS.includes(symbol) || MUTUAL_FUNDS.includes(symbol) || ETFS.includes(symbol);
