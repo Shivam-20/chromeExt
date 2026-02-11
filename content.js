@@ -1,15 +1,15 @@
 const STOCK_PATTERNS = [
   /\b[A-Z]{2,5}\b/g,
-  /\$[A-Z]{2,5}\b/g
+  /₹[A-Z]{2,5}\b/g
 ];
 
-const COMMON_STOCKS = ['AAPL', 'GOOGL', 'GOOG', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'JPM', 'V', 'JNJ', 'WMT', 'PG', 'MA', 'HD', 'UNH', 'BAC', 'XOM', 'PFE', 'CSCO', 'KO', 'PEP', 'CVX', 'ABT', 'MRK', 'ADBE', 'CRM', 'NFLX', 'DIS', 'INTC', 'ORCL', 'AMD', 'NKE', 'PYPL', 'QCOM', 'T', 'VZ', 'IBM', 'BA', 'CAT', 'GE', 'HON', 'MMM', 'UPS', 'GS', 'MS', 'C'];
+const COMMON_STOCKS = ['RELIANCE', 'TCS', 'HDFCBANK', 'INFY', 'ICICIBANK', 'HINDUNILVR', 'SBIN', 'BHARTIARTL', 'ITC', 'KOTAKBANK', 'LT', 'AXISBANK', 'BAJFINANCE', 'ASIANPAINT', 'MARUTI', 'HCLTECH', 'SUNPHARMA', 'TITAN', 'DMART', 'WIPRO', 'ULTRACEMCO', 'JSWSTEEL', 'TATAMOTORS', 'TATASTEEL', 'ADANIENT', 'ADANIGREEN', 'POWERGRID', 'NTPC', 'ONGC', 'COALINDIA', 'BPCL', 'IOC', 'HEROMOTOCO', 'EICHERMOT', 'DRREDDY', 'CIPLA', 'BAJAJFINSV', 'DIVISLAB', 'BRITANNIA', 'GRASIM', 'UPL', 'SHREECEM', 'NESTLEIND', 'HDFC', 'TECHM'];
 
-const MUTUAL_FUNDS = ['VFIAX', 'VTSAX', 'VBTLX', 'VGSLX', 'VWELX', 'FXAIX', 'SWPPX', 'VFINX', 'VIGAX', 'VGSLX', 'VTIAX', 'VBIAX', 'VMVAX', 'VSMAX', 'VEXAX', 'VGWAX', 'VEAIX', 'VEMAX', 'VTWAX'];
+const MUTUAL_FUNDS = ['AXISBLUECHIP', 'MIRAEASSET', 'PARAGPARIKH', 'SBI SMALL CAP', 'HDFC INDEX', 'ICICI PRU BLUECHIP', 'KOTAK BLUECHIP', 'UTI NIFTY', 'NIPPON SMALL CAP', 'CANARA ROBECO', 'DSP TAX SAVER', 'FRANKLIN INDIA', 'IDFC GOVT', 'INVESCO INDIA', 'L&T INDIA', 'MAHINDRA MANULITE', 'QUANT ACTIVE', 'SUNDARAM LARGE'];
 
-const ETFS = ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VGT', 'VYM', 'XLE', 'XLF', 'XLV', 'XLU', 'XLK', 'XLI', 'XLB', 'XLRE', 'XLY', 'XLP', 'XLC', 'XLK', 'XME', 'XLV', 'XOP', 'XBI', 'XHB', 'XTL', 'XLF'];
+const ETFS = ['NIFTYBEES', 'JUNIORBEES', 'BANKBEES', 'GOLDBEES', 'LIQUIDBEES', 'NIFTYIT', 'PSUBNKBEES', 'CPSEETF', 'BHARAT22', 'MIDCAPBEES', 'NIFTY100', 'NIFTY200', 'NIFTY500', 'SENSEXETF', 'ICICINIFTY', 'HDFCSENSEX', 'SBIETF', 'KOTAKNIFTY'];
 
-const FUTURES = ['ES', 'NQ', 'YM', 'GC', 'CL', 'NG', 'ZC', 'ZW', 'ZS', 'ZN', 'ZB', '6E', '6J', '6B', '6C', '6S'];
+const FUTURES = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'MIDCPNIFTY'];
 
 const CRYPTO = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'DOGE', 'SOL', 'DOT', 'MATIC', 'AVAX'];
 
@@ -18,7 +18,7 @@ const EXCLUDE_WORDS = ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', '
 let activeTooltips = new Set();
 
 function isFinancialSite() {
-  const financialDomains = ['finance.yahoo.com', 'www.marketwatch.com', 'www.bloomberg.com', 'seekingalpha.com', 'www.cnbc.com', 'investorplace.com', 'www.fool.com', 'stocktwits.com', 'finance.google.com'];
+  const financialDomains = ['moneycontrol.com', 'economictimes.indiatimes.com', 'livemint.com', 'business-standard.com', 'nseindia.com', 'bseindia.com', 'tickertape.in', 'screener.in', 'trendlyne.com', 'morningstar.in', 'valuepickr.com', 'zeebiz.com'];
   return financialDomains.some(domain => window.location.hostname.includes(domain));
 }
 

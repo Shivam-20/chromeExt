@@ -1,7 +1,8 @@
 /**
- * Stock & Fund Analyzer Pro - Popup Script
- * Main logic for stock analysis, portfolio management, and price alerts
- * @version 2.2.3
+ * Stock & Fund Analyzer Pro (India) - Popup Script
+ * Main logic for Indian stock analysis, portfolio management, and price alerts
+ * Supports NSE/BSE markets with Rupee (₹) pricing
+ * @version 2.3.0
  */
 
 const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
@@ -544,7 +545,7 @@ function hideOptimizedPrompt() {
 
 /**
  * Analyzes a stock or fund symbol
- * @param {string} symbol - Stock/fund symbol (e.g., AAPL)
+ * @param {string} symbol - Stock/fund symbol (e.g., RELIANCE, TCS)
  * @returns {Promise<void>}
  */
 async function handleAnalyze() {
@@ -556,7 +557,7 @@ async function handleAnalyze() {
   }
 
   if (!SYMBOL_REGEX.test(symbol)) {
-    showError('Invalid symbol format. Use 1-5 letters only (e.g., AAPL).');
+    showError('Invalid symbol format. Use 1-5 letters only (e.g., RELIANCE, TCS, INFY).');
     return;
   }
 
@@ -566,11 +567,11 @@ async function handleAnalyze() {
 
   try {
     const analysis = await analyzeWithAI(symbol);
-    
+
     if (!analysis || typeof analysis !== 'object') {
       throw new Error('Invalid analysis data received');
     }
-    
+
     displayResults(symbol, analysis);
     updateWatchlistButton(symbol);
   } catch (error) {
@@ -643,29 +644,29 @@ Please prioritize these aspects in your:
 `;
     }
 
-    const prompt = `You are a senior financial analyst. Analyze ${symbol} thoroughly and provide the following data:
+    const prompt = `You are a senior financial analyst. Analyze ${symbol} (Indian stock/mutual fund) thoroughly and provide the following data:
 
 CRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanations outside JSON.
 
 {
   "type": "stock|fund|etf",
   "name": "Complete company/fund name",
-  "exchange": "NASDAQ/NYSE/Other",
+  "exchange": "NSE/BSE",
   "sector": "Technology/Healthcare/Finance/Consumer/Energy/etc",
-  "price": "Current price with $ sign (e.g., $185.92)",
+  "price": "Current price in ₹ (e.g., ₹2,456.75)",
   "change": "Daily change % with sign (e.g., +2.34% or -1.15%)",
-  "volume": "Volume with format (e.g., 45.2M or 1.5B)",
-  "marketCap": "Market cap with format (e.g., $2.5T or $850B)",
+  "volume": "Volume with format (e.g., 45.2L or 1.5Cr)",
+  "marketCap": "Market cap in ₹ (e.g., ₹12.5L Cr or ₹850K Cr)",
   "peRatio": "P/E ratio (e.g., 28.5)",
-  "high52w": "52-week high with $ (e.g., $198.50)",
-  "low52w": "52-week low with $ (e.g., $145.20)",
+  "high52w": "52-week high in ₹ (e.g., ₹2,890.50)",
+  "low52w": "52-week low in ₹ (e.g., ₹1,850.20)",
   "dividendYield": "Dividend yield % or N/A",
   "beta": "Beta value (e.g., 1.25)",
-  "analystRating": "Buy/Hold/Sell with firm name (e.g., 'Buy - Goldman Sachs')",
-  "priceTarget": "Analyst 12-month price target",
-  "expenseRatio": "Expense ratio % (for ETFs/funds)",
+  "analystRating": "Buy/Hold/Sell with firm name (e.g., 'Buy - Motilal Oswal')",
+  "priceTarget": "Analyst 12-month price target in ₹",
+  "expenseRatio": "Expense ratio % (for mutual funds/ETFs)",
   "topHoldings": "Top 5 holdings (comma-separated)",
-  "etfType": "Type of ETF (e.g., 'Equity', 'Bond', 'Commodity', 'International')",
+  "etfType": "Type of ETF (e.g., 'Equity', 'Debt', 'Gold', 'International')",
   "overallScore": 0-100,
   "growthScore": 0-100,
   "valueScore": 0-100,
@@ -676,19 +677,22 @@ CRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanations o
     {"text": "Third specific insight", "sentiment": "positive|negative|neutral", "category": "entry|exit|hold|risk|opportunity"}
   ],
   "analysis": "2-3 sentences covering recent performance, current trend, and key drivers. Be specific with numbers if possible.",
-  "bearTarget": "Price with $ (e.g., $165)",
-  "baseTarget": "Price with $ (e.g., $195)",
-  "bullTarget": "Price with $ (e.g., $230)"
+  "bearTarget": "Price in ₹ (e.g., ₹2,200)",
+  "baseTarget": "Price in ₹ (e.g., ₹2,600)",
+  "bullTarget": "Price in ₹ (e.g., ₹3,000)"
 }
 
 REQUIREMENTS:
-- Use REAL market data as of ${currentDate}
+- Use REAL Indian market data from NSE/BSE as of ${currentDate}
+- All prices must be in Indian Rupees (₹)
+- Market cap in Lakhs/Crores format
 - Scores should be justified by fundamentals and technicals
 - Suggestions must be specific and actionable
 - Price targets should have 20-30% range from current price
-- If ${symbol} is an ETF, include expense ratio and top holdings
-- Include Wall Street analyst ratings and price targets when available
+- If ${symbol} is a mutual fund, include expense ratio and top holdings
+- Include SEBI-registered analyst ratings and price targets when available
 - If ${symbol} is not a real ticker, analyze it as a hypothetical stock and mark type as "stock"
+- Focus on Indian market conditions and regulations
 ${customFocus}
 
 Return ONLY the JSON object.`;
@@ -704,21 +708,25 @@ Return ONLY the JSON object.`;
         messages: [
           {
             role: 'system',
-            content: `You are a Wall Street senior financial analyst with 20+ years experience. You have access to current market data and specialize in:
-- Fundamental analysis (P/E, growth rates, earnings)
+            content: `You are a senior financial analyst specializing in Indian stock markets (NSE/BSE) with 20+ years experience. You have access to current market data and specialize in:
+- Fundamental analysis (P/E, growth rates, earnings, Indian GAAP)
 - Technical analysis (trends, support/resistance, momentum)
 - Risk assessment (beta, volatility, sector exposure)
 - Investment recommendations (entry/exit points, portfolio fit)
+- Indian market regulations (SEBI guidelines)
+- Mutual fund analysis (expense ratios, AUM, fund performance)
 
 ANALYSIS GUIDELINES:
-1. Provide accurate, real market data
+1. Provide accurate, real Indian market data from NSE/BSE
 2. Use specific numbers and percentages
-3. Score based on: fundamentals (40%), technicals (30%), sentiment (30%)
-4. Give actionable suggestions with clear reasoning
-5. Price targets: Bear (downside risk), Base (expected), Bull (optimistic)
-6. Be objective - acknowledge both risks and opportunities
-7. Return ONLY valid JSON, no formatting
-8. When custom focus is provided, prioritize those aspects in analysis
+3. All prices in Indian Rupees (₹)
+4. Market cap in Lakhs/Crores format
+5. Score based on: fundamentals (40%), technicals (30%), sentiment (30%)
+6. Give actionable suggestions with clear reasoning
+7. Price targets: Bear (downside risk), Base (expected), Bull (optimistic)
+8. Be objective - acknowledge both risks and opportunities
+9. Return ONLY valid JSON, no formatting
+10. When custom focus is provided, prioritize those aspects in analysis
 
 Current date: ${currentDate}`
           },
@@ -1164,21 +1172,21 @@ async function fetchMarketNews() {
     const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const apiKey = await getApiKey();
 
-    const prompt = `Provide 5 of the most important recent stock market news items that investors should know about.
+    const prompt = `Provide 5 of the most important recent Indian stock market news items that investors should know about.
 
 Focus on:
-1. Major earnings reports
-2. Economic indicators (Fed decisions, inflation data, jobs)
-3. Tech industry developments
-4. Market-moving events
-5. Sector-specific trends
+1. Major earnings reports from NSE/BSE listed companies
+2. Economic indicators (RBI decisions, inflation data, GDP growth)
+3. IT, banking, pharma, and auto sector developments
+4. Market-moving events (FII/DII activity, IPOs, corporate actions)
+5. Government policies affecting markets (budget, regulations)
 
 Return ONLY valid JSON array:
 
 [
   {
     "title": "News headline",
-    "source": "Bloomberg/Reuters/CNBC/WSJ/etc",
+    "source": "Economic Times/Moneycontrol/Business Standard/Livemint/etc",
     "time": "Time relative to now (e.g., '2 hours ago', 'Today', 'Yesterday')",
     "url": "https://example.com/article",
     "impact": "high|medium|low",
@@ -1187,7 +1195,7 @@ Return ONLY valid JSON array:
 ]
 
 News date context: ${today}
-Use real recent news when available. If real data not accessible, create highly realistic news based on current market conditions.`;
+Use real recent Indian market news when available. If real data not accessible, create highly realistic news based on current Indian market conditions.`;
 
     const response = await fetch(ZAI_API_URL, {
       method: 'POST',
@@ -1200,16 +1208,17 @@ Use real recent news when available. If real data not accessible, create highly 
         messages: [
           {
             role: 'system',
-            content: `You are a senior financial journalist working for a major news outlet. Your job is to:
-1. Identify the most market-relevant news
+            content: `You are a senior financial journalist working for a major Indian business news outlet. Your job is to:
+1. Identify the most market-relevant news for Indian investors
 2. Write compelling, accurate headlines
-3. Provide context on why it matters
+3. Provide context on why it matters for NSE/BSE markets
 4. Be concise and actionable
 
 News items should be:
 - Recent (within 24-48 hours when possible)
+- Relevant to Indian stock markets (NSE/BSE)
 - Market-moving or significant
-- From credible sources
+- From credible Indian sources (ET, Moneycontrol, Business Standard, Livemint)
 - Clearly explained
 
 Return ONLY valid JSON arrays.`
@@ -1444,17 +1453,17 @@ function loadPortfolio() {
       
       const sharesDiv = document.createElement('div');
       sharesDiv.className = 'holding-shares';
-      sharesDiv.textContent = `${holding.shares || 0} shares @ $${(holding.buyPrice || 0).toFixed(2)}`;
-      
+      sharesDiv.textContent = `${holding.shares || 0} shares @ ₹${(holding.buyPrice || 0).toFixed(2)}`;
+
       infoDiv.appendChild(symbolDiv);
       infoDiv.appendChild(sharesDiv);
-      
+
       const valueDiv = document.createElement('div');
       valueDiv.className = 'holding-value';
-      
+
       const priceDiv = document.createElement('div');
       priceDiv.className = 'holding-price';
-      priceDiv.textContent = `$${currentValue.toFixed(2)}`;
+      priceDiv.textContent = `₹${currentValue.toFixed(2)}`;
       
       const changeDiv = document.createElement('div');
       changeDiv.className = `holding-change ${parseFloat(change) >= 0 ? 'positive' : 'negative'}`;
@@ -1480,8 +1489,8 @@ function loadPortfolio() {
     });
 
     const totalChange = totalCost > 0 ? ((totalValue - totalCost) / totalCost * 100).toFixed(2) : '0.00';
-    document.getElementById('totalValue').textContent = `$${totalValue.toFixed(2)}`;
-    document.getElementById('totalChange').textContent = `$${(totalValue - totalCost).toFixed(2)} (${parseFloat(totalChange) >= 0 ? '+' : ''}${totalChange}%)`;
+    document.getElementById('totalValue').textContent = `₹${totalValue.toFixed(2)}`;
+    document.getElementById('totalChange').textContent = `₹${(totalValue - totalCost).toFixed(2)} (${parseFloat(totalChange) >= 0 ? '+' : ''}${totalChange}%)`;
   });
 }
 

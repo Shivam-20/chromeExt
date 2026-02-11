@@ -241,16 +241,17 @@ async function getSymbolPrice(symbol) {
 
     const apiKey = result.apiKey;
 
-    const prompt = `You need to get the CURRENT real-time market price for ${symbol}.
+    const prompt = `You need to get the CURRENT real-time market price for ${symbol} (Indian stock/mutual fund).
 
 Return ONLY valid JSON:
 {
-  "price": "Current price with $ sign (e.g., $185.92)",
+  "price": "Current price in ₹ (e.g., ₹2,456.75)",
   "change": "Daily change % with sign (e.g., +2.34% or -1.15%)"
 }
 
 IMPORTANT:
-- Use the most recent market data available
+- Use the most recent Indian market data available from NSE/BSE
+- Price must be in Indian Rupees (₹)
 - Price should be the current trading price or last close
 - Change should be today's percentage change
 - If market is closed, use the last closing price
@@ -267,13 +268,14 @@ IMPORTANT:
         messages: [
           {
             role: 'system',
-            content: `You are a real-time market data provider. Your responses must be:
+            content: `You are a real-time Indian market data provider for NSE/BSE. Your responses must be:
 1. 100% accurate to the best of your knowledge
-2. Current as of today's market session
-3. Formatted exactly as requested
-4. JSON-only output (no markdown, no explanations)
+2. Current as of today's market session (IST)
+3. All prices in Indian Rupees (₹)
+4. Formatted exactly as requested
+5. JSON-only output (no markdown, no explanations)
 
-You have access to stock market data and can provide real-time prices for major stocks and funds.`
+You have access to Indian stock market data and can provide real-time prices for major stocks, mutual funds, and ETFs.`
           },
           { role: 'user', content: prompt }
         ],
