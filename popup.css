@@ -683,6 +683,112 @@ header h1 {
   color: #fff;
 }
 
+.export-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.export-section h3 {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.export-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.export-btn {
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: #a1a1aa;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.3);
+  color: #a5b4fc;
+  transform: translateY(-1px);
+}
+
+.export-btn:active {
+  transform: translateY(0);
+}
+
+/* Analyst and ETF Info Styles (Feature #13, #23) */
+.analyst-rating,
+.price-target,
+.etf-info {
+  margin-bottom: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.analyst-rating h3,
+.price-target h3,
+.etf-info h3 {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.rating-badge {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 12px 20px;
+  border-radius: 10px;
+  color: white;
+  font-weight: 600;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.target-value {
+  background: rgba(34, 197, 94, 0.1);
+  padding: 12px 20px;
+  border-radius: 10px;
+  color: #86efac;
+  font-weight: 600;
+  text-align: center;
+  font-size: 1.2rem;
+}
+
+.etf-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.etf-detail {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 8px;
+}
+
+.etf-detail .label {
+  color: #71717a;
+  font-size: 0.75rem;
+}
+
+.etf-detail .value {
+  font-weight: 600;
+  color: #fff;
+  font-size: 0.85rem;
+}
+
 .portfolio-section, .compare-section, .news-section {
   padding: 8px 0;
 }
@@ -899,13 +1005,65 @@ header h1 {
   font-size: 0.85rem;
   margin-bottom: 6px;
   line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.news-title::before {
+  content: '';
+  width: 3px;
+  height: 16px;
+  background: #667eea;
+  border-radius: 2px;
+}
+
+.news-item[data-sentiment='bullish'] .news-title::before {
+  background: #22c55e;
+}
+
+.news-item[data-sentiment='bearish'] .news-title::before {
+  background: #ef4444;
+}
+
+.news-item[data-sentiment='neutral'] .news-title::before {
+  background: #f59e0b;
 }
 
 .news-source {
   font-size: 0.7rem;
   color: #71717a;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sentiment-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sentiment-bullish {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.sentiment-bearish {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.sentiment-neutral {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
 .news-time {
@@ -931,6 +1089,38 @@ header h1 {
   color: #52525b;
   font-size: 0.85rem;
   padding: 40px 20px;
+}
+
+/* Accessibility improvements (Feature #30) */
+button:focus, input:focus, textarea:focus, select:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Keyboard navigation */
+.tab-btn:focus-visible,
+.action-btn:focus-visible,
+.export-btn:focus-visible,
+.quick-btn:focus-visible,
+.prompt-tag:focus-visible,
+.toggle-btn:focus-visible {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.5);
 }
 
 .modal {

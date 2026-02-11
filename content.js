@@ -7,7 +7,15 @@ const COMMON_STOCKS = ['AAPL', 'GOOGL', 'GOOG', 'MSFT', 'AMZN', 'TSLA', 'META', 
 
 const MUTUAL_FUNDS = ['VFIAX', 'VTSAX', 'VBTLX', 'VGSLX', 'VWELX', 'FXAIX', 'SWPPX', 'VFINX', 'VIGAX', 'VGSLX', 'VTIAX', 'VBIAX', 'VMVAX', 'VSMAX', 'VEXAX', 'VGWAX', 'VEAIX', 'VEMAX', 'VTWAX'];
 
+const ETFS = ['SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VGT', 'VYM', 'XLE', 'XLF', 'XLV', 'XLU', 'XLK', 'XLI', 'XLB', 'XLRE', 'XLY', 'XLP', 'XLC', 'XLK', 'XME', 'XLV', 'XOP', 'XBI', 'XHB', 'XTL', 'XLF'];
+
+const FUTURES = ['ES', 'NQ', 'YM', 'GC', 'CL', 'NG', 'ZC', 'ZW', 'ZS', 'ZN', 'ZB', '6E', '6J', '6B', '6C', '6S'];
+
+const CRYPTO = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'DOGE', 'SOL', 'DOT', 'MATIC', 'AVAX'];
+
 const EXCLUDE_WORDS = ['THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HAD', 'HER', 'WAS', 'ONE', 'OUR', 'OUT', 'HAS', 'HAVE', 'WILL', 'WITH', 'THIS', 'THAT', 'FROM', 'THEY', 'WOULD', 'THERE', 'THEIR', 'ABOUT', 'WHICH', 'WHEN', 'MAKE', 'LIKE', 'INTO', 'YEAR', 'YOUR', 'JUST', 'OVER', ' ALSO', 'AFTER', 'BEING', 'BEFORE', 'COULD', 'EVERY', 'FIRST', 'FOUND', 'GREAT', 'HOUSE', 'LARGE', 'LEARN', 'NEVER', 'OTHER', 'PLACE', 'PLANT', 'POINT', 'RIGHT', 'SMALL', 'SOUND', 'SPELL', 'STILL', 'STUDY', 'THEIR', 'THERE', 'THESE', 'THING', 'THINK', 'THREE', 'WATER', 'WHERE', 'WHICH', 'WORLD', 'WRITE', 'YEARS'];
+
+let activeTooltips = new Set();
 
 function isFinancialSite() {
   const financialDomains = ['finance.yahoo.com', 'www.marketwatch.com', 'www.bloomberg.com', 'seekingalpha.com', 'www.cnbc.com', 'investorplace.com', 'www.fool.com', 'stocktwits.com', 'finance.google.com'];
@@ -37,9 +45,18 @@ function isValidSymbol(symbol) {
   if (symbol.length < 2 || symbol.length > 5) return false;
   if (!/^[A-Z]+$/.test(symbol)) return false;
   if (/^[A-Z]{1,1}[A-Z]{1,1}$/.test(symbol)) {
-    return COMMON_STOCKS.includes(symbol) || MUTUAL_FUNDS.includes(symbol);
+    return COMMON_STOCKS.includes(symbol) || MUTUAL_FUNDS.includes(symbol) || ETFS.includes(symbol);
   }
   return true;
+}
+
+function detectSymbolType(symbol) {
+  if (COMMON_STOCKS.includes(symbol)) return 'stock';
+  if (MUTUAL_FUNDS.includes(symbol)) return 'fund';
+  if (ETFS.includes(symbol)) return 'etf';
+  if (FUTURES.includes(symbol)) return 'future';
+  if (CRYPTO.includes(symbol)) return 'crypto';
+  return 'unknown';
 }
 
 function createTooltip(symbol, x, y) {

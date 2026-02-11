@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Stock & Fund Analyzer Pro",
-  "version": "2.0.0",
-  "description": "Advanced AI-powered stock and mutual fund analytics with portfolio tracking, alerts, and comparisons",
+  "version": "2.1.0",
+  "description": "Advanced AI-powered stock, mutual fund, ETF, and futures analytics with portfolio tracking, alerts, sentiment analysis, and export capabilities",
   "permissions": [
     "activeTab",
     "storage",
@@ -12,8 +12,7 @@
   ],
   "host_permissions": [
     "https://*/*",
-    "https://api.z.ai/*",
-    "https://newsapi.org/*"
+    "https://api.z.ai/*"
   ],
   "action": {
     "default_popup": "popup.html",

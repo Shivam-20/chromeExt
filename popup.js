@@ -13,12 +13,16 @@ const CONFIG = {
     PRICE_CHECK: 0.2,
     NEWS: 0.6,
     OPTIMIZATION: 0.5
-  }
+  },
+  CACHE_DURATION: 5 * 60 * 1000 // 5 minutes cache
 };
 
 let currentSymbol = null;
 let debounceTimer = null;
 let cachedElements = null;
+let analysisCache = new Map();
+let newsCache = null;
+let newsCacheTime = 0;
 
 async function getApiKey() {
   try {
@@ -55,6 +59,9 @@ function cacheElements() {
     bearTarget: document.getElementById('bearTarget'),
     baseTarget: document.getElementById('baseTarget'),
     bullTarget: document.getElementById('bullTarget'),
+    copyReport: document.getElementById('copyReport'),
+    exportCSV: document.getElementById('exportCSV'),
+    exportJSON: document.getElementById('exportJSON'),
     results: document.getElementById('results'),
     loading: document.getElementById('loading'),
     error: document.getElementById('error'),
@@ -74,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNews();
   setupModals();
   setupCustomPrompt();
+  setupExportButtons();
   loadSavedData();
 });
 
@@ -119,6 +127,38 @@ function setupWatchlist() {
   document.getElementById('setAlert').addEventListener('click', () => {
     if (currentSymbol) showAlertModal(currentSymbol);
   });
+}
+
+function setupPortfolio() {
+  document.getElementById('addHolding').addEventListener('click', () => {
+    document.getElementById('holdingModal').classList.remove('hidden');
+  });
+
+  document.getElementById('saveHolding').addEventListener('click', saveHolding());
+  document.getElementById('cancelHolding').addEventListener('click', () => {
+    document.getElementById('holdingModal').classList.add('hidden');
+  });
+}
+
+function setupComparison() {
+  document.getElementById('compareBtn').addEventListener('click', handleComparison);
+}
+
+function setupNews() {
+  loadMarketNews();
+}
+
+function setupModals() {
+  document.getElementById('saveAlert').addEventListener('click', saveAlert);
+  document.getElementById('cancelAlert').addEventListener('click', () => {
+    document.getElementById('alertModal').classList.add('hidden');
+  });
+}
+
+function setupExportButtons() {
+  document.getElementById('copyReport').addEventListener('click', copyReportToClipboard);
+  document.getElementById('exportCSV').addEventListener('click', exportToCSV);
+  document.getElementById('exportJSON').addEventListener('click', exportToJSON);
 }
 
 function setupPortfolio() {
@@ -388,6 +428,11 @@ CRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanations o
   "low52w": "52-week low with $ (e.g., $145.20)",
   "dividendYield": "Dividend yield % or N/A",
   "beta": "Beta value (e.g., 1.25)",
+  "analystRating": "Buy/Hold/Sell with firm name (e.g., 'Buy - Goldman Sachs')",
+  "priceTarget": "Analyst 12-month price target",
+  "expenseRatio": "Expense ratio % (for ETFs/funds)",
+  "topHoldings": "Top 5 holdings (comma-separated)",
+  "etfType": "Type of ETF (e.g., 'Equity', 'Bond', 'Commodity', 'International')",
   "overallScore": 0-100,
   "growthScore": 0-100,
   "valueScore": 0-100,
@@ -408,6 +453,8 @@ REQUIREMENTS:
 - Scores should be justified by fundamentals and technicals
 - Suggestions must be specific and actionable
 - Price targets should have 20-30% range from current price
+- If ${symbol} is an ETF, include expense ratio and top holdings
+- Include Wall Street analyst ratings and price targets when available
 - If ${symbol} is not a real ticker, analyze it as a hypothetical stock and mark type as "stock"
 ${customFocus}
 
@@ -497,6 +544,9 @@ function displayResults(symbol, data) {
     return;
   }
 
+  currentAnalysisData = data;
+  currentSymbol = symbol;
+
   const elements = cacheElements();
   
   elements.symbolName.textContent = data.name || symbol;
@@ -512,6 +562,59 @@ function displayResults(symbol, data) {
   elements.peRatio.textContent = data.peRatio || 'N/A';
   elements.high52w.textContent = data.high52w || 'N/A';
   elements.low52w.textContent = data.low52w || 'N/A';
+
+  // Display additional fields
+  if (data.analystRating) {
+    let analystDiv = elements.results.querySelector('.analyst-rating');
+    if (!analystDiv) {
+      const suggestionsSection = elements.results.querySelector('.suggestions');
+      if (suggestionsSection) {
+        analystDiv = document.createElement('div');
+        analystDiv.className = 'analyst-rating';
+        analystDiv.innerHTML = `
+          <h3>📊 Analyst Rating</h3>
+          <div class="rating-badge">${data.analystRating}</div>
+        `;
+        suggestionsSection.parentNode.insertBefore(analystDiv, suggestionsSection);
+      }
+    }
+  }
+
+  if (data.priceTarget) {
+    let targetDiv = elements.results.querySelector('.price-target');
+    if (!targetDiv) {
+      const suggestionsSection = elements.results.querySelector('.suggestions');
+      if (suggestionsSection) {
+        targetDiv = document.createElement('div');
+        targetDiv.className = 'price-target';
+        targetDiv.innerHTML = `
+          <h3>🎯 Analyst Target</h3>
+          <div class="target-value">${data.priceTarget}</div>
+        `;
+        suggestionsSection.parentNode.insertBefore(targetDiv, suggestionsSection);
+      }
+    }
+  }
+
+  if (data.expenseRatio || data.topHoldings) {
+    let etfDiv = elements.results.querySelector('.etf-info');
+    if (!etfDiv && (data.type === 'etf' || data.type === 'fund')) {
+      const targetsSection = elements.results.querySelector('.targets');
+      if (targetsSection) {
+        etfDiv = document.createElement('div');
+        etfDiv.className = 'etf-info';
+        etfDiv.innerHTML = `
+          <h3>📈 ETF/Fund Info</h3>
+          <div class="etf-details">
+            ${data.expenseRatio ? `<div class="etf-detail"><span class="label">Expense Ratio:</span><span class="value">${data.expenseRatio}</span></div>` : ''}
+            ${data.topHoldings ? `<div class="etf-detail"><span class="label">Top Holdings:</span><span class="value">${data.topHoldings}</span></div>` : ''}
+            ${data.etfType ? `<div class="etf-detail"><span class="label">Type:</span><span class="value">${data.etfType}</span></div>` : ''}
+          </div>
+        `;
+        targetsSection.parentNode.insertBefore(etfDiv, targetsSection);
+      }
+    }
+  }
 
   elements.overallScore.textContent = data.overallScore || '--';
   elements.growthScore.textContent = data.growthScore || '--';
@@ -674,7 +777,7 @@ function displayComparison(symbol1, data1, symbol2, data2) {
 }
 
 /**
- * Loads market news and displays it
+ * Loads market news and displays it with sentiment analysis
  * @returns {Promise<void>}
  */
 async function loadMarketNews() {
@@ -694,12 +797,19 @@ async function loadMarketNews() {
     news.forEach(item => {
       if (!item || !item.title) return;
       
+      const sentiment = analyzeSentiment(item.title, item.summary || '');
+      
       const div = document.createElement('div');
       div.className = 'news-item';
+      div.setAttribute('data-sentiment', sentiment);
       
       const titleDiv = document.createElement('div');
       titleDiv.className = 'news-title';
       titleDiv.textContent = item.title || '';
+      
+      const sentimentBadge = document.createElement('span');
+      sentimentBadge.className = `sentiment-badge sentiment-${sentiment}`;
+      sentimentBadge.textContent = sentiment.toUpperCase();
       
       const sourceDiv = document.createElement('div');
       sourceDiv.className = 'news-source';
@@ -711,6 +821,7 @@ async function loadMarketNews() {
       timeSpan.className = 'news-time';
       timeSpan.textContent = item.time || '';
       
+      sourceDiv.appendChild(sentimentBadge);
       sourceDiv.appendChild(sourceSpan);
       sourceDiv.appendChild(timeSpan);
       
@@ -739,11 +850,47 @@ async function loadMarketNews() {
 }
 
 /**
- * Fetches market news from AI API
+ * Analyzes sentiment of news title and summary
+ * @param {string} title - News title
+ * @param {string} summary - News summary
+ * @returns {string} Sentiment: 'bullish', 'bearish', or 'neutral'
+ */
+function analyzeSentiment(title, summary) {
+  const text = (title + ' ' + summary).toLowerCase();
+  
+  const bullishWords = ['up', 'rise', 'gain', 'growth', 'beat', 'positive', 'increase', 'rally', 'surge', 'profit', 'strong', 'record', 'outperform', 'upgrade', 'bull', 'buy', 'breakthrough'];
+  const bearishWords = ['down', 'fall', 'drop', 'loss', 'decline', 'miss', 'negative', 'decrease', 'plunge', 'slump', 'sell', 'weak', 'cut', 'underperform', 'downgrade', 'bear', 'concern', 'risk', 'warning'];
+  
+  let bullishCount = 0;
+  let bearishCount = 0;
+  
+  bullishWords.forEach(word => {
+    if (text.includes(word)) bullishCount++;
+  });
+  
+  bearishWords.forEach(word => {
+    if (text.includes(word)) bearishCount++;
+  });
+  
+  if (bullishCount > bearishCount) return 'bullish';
+  if (bearishCount > bullishCount) return 'bearish';
+  return 'neutral';
+}
+
+/**
+ * Fetches market news from AI API with caching
  * @returns {Promise<Array>} Array of news items
  * @throws {Error} If API request fails or returns invalid data
  */
 async function fetchMarketNews() {
+  const cacheKey = 'news';
+  const now = Date.now();
+  
+  if (newsCache && newsCacheTime && (now - newsCacheTime) < CONFIG.CACHE_DURATION) {
+    console.log('Using cached news data');
+    return newsCache;
+  }
+  
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const apiKey = await getApiKey();
   
@@ -826,6 +973,9 @@ Return ONLY valid JSON arrays.`
   if (!Array.isArray(parsedNews)) {
     throw new Error('Invalid news data structure');
   }
+  
+  newsCache = parsedNews;
+  newsCacheTime = now;
   
   return parsedNews;
 }
@@ -1112,6 +1262,176 @@ function showError(message, isSuccess = false) {
       elements.error.classList.add('hidden');
     }, 3000);
   }
+}
+
+let currentAnalysisData = null;
+
+/**
+ * Copies current analysis report to clipboard
+ * @returns {void}
+ */
+function copyReportToClipboard() {
+  if (!currentAnalysisData || !currentSymbol) {
+    showError('No analysis data to export');
+    return;
+  }
+
+  const data = currentAnalysisData;
+  const report = `
+Stock & Fund Analyzer Pro - Analysis Report
+===============================================
+
+${data.name || currentSymbol} (${data.type || 'Unknown'})
+Generated: ${new Date().toLocaleString()}
+
+MARKET DATA
+-----------
+Price: ${data.price || 'N/A'}
+Change: ${data.change || 'N/A'}
+Volume: ${data.price || 'N/A'}
+Market Cap: ${data.marketCap || 'N/A'}
+P/E Ratio: ${data.peRatio || 'N/A'}
+52W High: ${data.high52w || 'N/A'}
+52W Low: ${data.low52w || 'N/A'}
+Dividend Yield: ${data.dividendYield || 'N/A'}
+Beta: ${data.beta || 'N/A'}
+
+SCORES
+------
+Overall: ${data.overallScore || '--'}/100
+Growth: ${data.growthScore || '--'}/100
+Value: ${data.valueScore || '--'}/100
+Safety: ${data.safetyScore || '--'}/100
+
+PRICE TARGETS
+-------------
+Bear Case: ${data.bearTarget || '--'}
+Base Case: ${data.baseTarget || '--'}
+Bull Case: ${data.bullTarget || '--'}
+
+AI SUGGESTIONS
+--------------
+${data.suggestions && data.suggestions.length > 0 
+  ? data.suggestions.map((s, i) => `${i + 1}. ${s.text} (${s.sentiment})`).join('\n')
+  : 'No suggestions available'}
+
+ANALYSIS
+--------
+${data.analysis || 'No analysis available.'}
+
+===============================================
+Generated by Stock & Fund Analyzer Pro
+https://github.com/Shivam-20/chromeExt
+`.trim();
+
+  navigator.clipboard.writeText(report).then(() => {
+    showError('Report copied to clipboard!', true);
+  }).catch(() => {
+    showError('Failed to copy report');
+  });
+}
+
+/**
+ * Exports current analysis to CSV format
+ * @returns {void}
+ */
+function exportToCSV() {
+  if (!currentAnalysisData || !currentSymbol) {
+    showError('No analysis data to export');
+    return;
+  }
+
+  const data = currentAnalysisData;
+  const csv = [
+    'Symbol,Name,Type,Price,Change,Volume,Market Cap,P/E Ratio,52W High,52W Low,Dividend Yield,Beta,Overall Score,Growth Score,Value Score,Safety Score,Bear Target,Base Target,Bull Target,Analysis',
+    [
+      currentSymbol,
+      `"${(data.name || '').replace(/"/g, '""')}"`,
+      data.type || '',
+      data.price || '',
+      data.change || '',
+      data.volume || '',
+      data.marketCap || '',
+      data.peRatio || '',
+      data.high52w || '',
+      data.low52w || '',
+      data.dividendYield || '',
+      data.beta || '',
+      data.overallScore || '',
+      data.growthScore || '',
+      data.valueScore || '',
+      data.safetyScore || '',
+      data.bearTarget || '',
+      data.baseTarget || '',
+      data.bullTarget || '',
+      `"${(data.analysis || '').replace(/"/g, '""').replace(/\n/g, ' ')}"`
+    ].join(',')
+  ].join('\n');
+
+  downloadFile(csv, `${currentSymbol}_analysis.csv`, 'text/csv');
+  showError('CSV exported successfully!', true);
+}
+
+/**
+ * Exports current analysis to JSON format
+ * @returns {void}
+ */
+function exportToJSON() {
+  if (!currentAnalysisData || !currentSymbol) {
+    showError('No analysis data to export');
+    return;
+  }
+
+  const exportData = {
+    symbol: currentSymbol,
+    name: currentAnalysisData.name,
+    type: currentAnalysisData.type,
+    analysis: {
+      price: currentAnalysisData.price,
+      change: currentAnalysisData.change,
+      volume: currentAnalysisData.volume,
+      marketCap: currentAnalysisData.marketCap,
+      peRatio: currentAnalysisData.peRatio,
+      high52w: currentAnalysisData.high52w,
+      low52w: currentAnalysisData.low52w,
+      dividendYield: currentAnalysisData.dividendYield,
+      beta: currentAnalysisData.beta
+    },
+    scores: {
+      overall: currentAnalysisData.overallScore,
+      growth: currentAnalysisData.growthScore,
+      value: currentAnalysisData.valueScore,
+      safety: currentAnalysisData.safetyScore
+    },
+    targets: {
+      bear: currentAnalysisData.bearTarget,
+      base: currentAnalysisData.baseTarget,
+      bull: currentAnalysisData.bullTarget
+    },
+    suggestions: currentAnalysisData.suggestions,
+    analysis: currentAnalysisData.analysis,
+    generatedAt: new Date().toISOString()
+  };
+
+  downloadFile(JSON.stringify(exportData, null, 2), `${currentSymbol}_analysis.json`, 'application/json');
+  showError('JSON exported successfully!', true);
+}
+
+/**
+ * Downloads a file
+ * @param {string} content - File content
+ * @param {string} filename - File name
+ * @param {string} mimeType - MIME type
+ * @returns {void}
+ */
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /**
