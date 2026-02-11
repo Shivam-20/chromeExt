@@ -1,7 +1,68 @@
-const ZAI_API_KEY = 'YOUR_ZAI_API_KEY';
+/**
+ * Stock & Fund Analyzer Pro - Popup Script
+ * Main logic for stock analysis, portfolio management, and price alerts
+ * @version 2.1.0
+ */
+
 const ZAI_API_URL = 'https://api.z.ai/v1/chat/completions';
+const SYMBOL_REGEX = /^[A-Z]{1,5}$/;
+
+const CONFIG = {
+  TEMPERATURE: {
+    ANALYSIS: 0.5,
+    PRICE_CHECK: 0.2,
+    NEWS: 0.6,
+    OPTIMIZATION: 0.5
+  }
+};
 
 let currentSymbol = null;
+let debounceTimer = null;
+let cachedElements = null;
+
+async function getApiKey() {
+  try {
+    const result = await chrome.storage.local.get(['apiKey']);
+    return result.apiKey || 'YOUR_ZAI_API_KEY';
+  } catch (error) {
+    console.error('Error getting API key:', error);
+    return 'YOUR_ZAI_API_KEY';
+  }
+}
+
+function cacheElements() {
+  if (cachedElements) return cachedElements;
+  
+  cachedElements = {
+    symbolName: document.getElementById('symbolName'),
+    symbolType: document.getElementById('symbolType'),
+    price: document.getElementById('price'),
+    change: document.getElementById('change'),
+    volume: document.getElementById('volume'),
+    marketCap: document.getElementById('marketCap'),
+    peRatio: document.getElementById('peRatio'),
+    high52w: document.getElementById('high52w'),
+    low52w: document.getElementById('low52w'),
+    overallScore: document.getElementById('overallScore'),
+    growthScore: document.getElementById('growthScore'),
+    valueScore: document.getElementById('valueScore'),
+    safetyScore: document.getElementById('safetyScore'),
+    growthBar: document.getElementById('growthBar'),
+    valueBar: document.getElementById('valueBar'),
+    safetyBar: document.getElementById('safetyBar'),
+    suggestionList: document.getElementById('suggestionList'),
+    analysisText: document.getElementById('analysisText'),
+    bearTarget: document.getElementById('bearTarget'),
+    baseTarget: document.getElementById('baseTarget'),
+    bullTarget: document.getElementById('bullTarget'),
+    results: document.getElementById('results'),
+    loading: document.getElementById('loading'),
+    error: document.getElementById('error'),
+    addToWatchlist: document.getElementById('addToWatchlist')
+  };
+  
+  return cachedElements;
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   setupTabs();
@@ -108,7 +169,7 @@ function setupCustomPrompt() {
   optimizeBtn.addEventListener('click', async () => {
     const promptText = customPrompt.value.trim();
     if (!promptText) {
-      alert('Please enter a prompt to optimize');
+      showError('Please enter a prompt to optimize');
       return;
     }
     
@@ -158,12 +219,13 @@ async function optimizeUserPrompt(userPrompt) {
     
     optimizedText.textContent = optimized.prompt;
     explanationText.innerHTML = `
-      <strong>Why this works better:</strong> ${optimized.explanation}
+      <strong>Why this works better:</strong> ${sanitizeHtml(optimized.explanation)}
     `;
     
     optimizedContainer.classList.remove('hidden');
   } catch (error) {
-    alert('Failed to optimize prompt: ' + error.message);
+    console.error('Prompt optimization error:', error);
+    showError('Failed to optimize prompt. Please try again.');
   } finally {
     optimizeBtn.disabled = false;
     optimizeBtn.textContent = '✨ Optimize Prompt';
@@ -196,11 +258,12 @@ Example transformation:
 Input: "look at dividends"
 Output: "Analyze the dividend history, yield, and sustainability. Evaluate payout ratio and dividend growth rate over the past 5 years. Assess dividend safety and future growth potential."`;
 
+  const apiKey = await getApiKey();
   const response = await fetch(ZAI_API_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ZAI_API_KEY}`
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: 'gpt-4',
@@ -211,7 +274,7 @@ Output: "Analyze the dividend history, yield, and sustainability. Evaluate payou
         },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.5
+      temperature: CONFIG.TEMPERATURE.OPTIMIZATION
     })
   });
 
@@ -235,11 +298,21 @@ function hideOptimizedPrompt() {
   optimizedContainer.classList.add('hidden');
 }
 
+/**
+ * Analyzes a stock or fund symbol
+ * @param {string} symbol - Stock/fund symbol (e.g., AAPL)
+ * @returns {Promise<void>}
+ */
 async function handleAnalyze() {
   const symbol = document.getElementById('symbolInput').value.trim().toUpperCase();
 
   if (!symbol) {
     showError('Please enter a stock or fund symbol');
+    return;
+  }
+
+  if (!SYMBOL_REGEX.test(symbol)) {
+    showError('Invalid symbol format. Use 1-5 letters only (e.g., AAPL).');
     return;
   }
 
@@ -249,18 +322,38 @@ async function handleAnalyze() {
 
   try {
     const analysis = await analyzeWithAI(symbol);
+    
+    if (!analysis || typeof analysis !== 'object') {
+      throw new Error('Invalid analysis data received');
+    }
+    
     displayResults(symbol, analysis);
     updateWatchlistButton(symbol);
   } catch (error) {
-    showError('Analysis failed: ' + error.message);
+    console.error('Analysis error:', error);
+    
+    if (error.message.includes('API') || error.message.includes('fetch')) {
+      showError('Unable to connect to analysis service. Please check your API key and try again.');
+    } else if (error.message.includes('Invalid') || error.message.includes('format')) {
+      showError('Received invalid data from analysis service. Please try again.');
+    } else {
+      showError('Analysis failed. Please try again later.');
+    }
   } finally {
     showLoading(false);
   }
 }
 
+/**
+ * Performs AI analysis of a stock/fund symbol
+ * @param {string} symbol - Stock/fund symbol
+ * @returns {Promise<Object>} Analysis data with metrics, scores, and suggestions
+ * @throws {Error} If API request fails or returns invalid data
+ */
 async function analyzeWithAI(symbol) {
   const currentDate = new Date().toISOString().split('T')[0];
   const customPrompt = document.getElementById('customPrompt').value.trim();
+  const apiKey = await getApiKey();
   
   let customFocus = '';
   if (customPrompt) {
@@ -324,7 +417,7 @@ Return ONLY the JSON object.`;
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ZAI_API_KEY}`
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: 'gpt-4',
@@ -351,71 +444,133 @@ Current date: ${currentDate}`
         },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.5
+      temperature: CONFIG.TEMPERATURE.ANALYSIS
     })
   });
 
-  if (!response.ok) throw new Error('AI API request failed');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || 'AI API request failed');
+  }
 
   const data = await response.json();
-  const content = data.choices[0].message.content;
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('Invalid API response: No content returned');
+  }
+  
   const jsonMatch = content.match(/\{[\s\S]*\}/);
 
-  if (!jsonMatch) throw new Error('Invalid AI response format');
+  if (!jsonMatch) {
+    throw new Error('Invalid AI response format');
+  }
 
-  return JSON.parse(jsonMatch[0]);
+  const parsedData = JSON.parse(jsonMatch[0]);
+  
+  if (!parsedData || typeof parsedData !== 'object') {
+    throw new Error('Invalid parsed data structure');
+  }
+  
+  return parsedData;
 }
 
+/**
+ * Sanitizes HTML to prevent XSS attacks
+ * @param {string} html - HTML string to sanitize
+ * @returns {string} Sanitized HTML
+ */
+function sanitizeHtml(html) {
+  const temp = document.createElement('div');
+  temp.textContent = html;
+  return temp.innerHTML;
+}
+
+/**
+ * Displays analysis results in the UI
+ * @param {string} symbol - Stock/fund symbol
+ * @param {Object} data - Analysis data
+ */
 function displayResults(symbol, data) {
-  document.getElementById('symbolName').textContent = data.name || symbol;
+  if (!data || typeof data !== 'object') {
+    showError('Invalid analysis data');
+    return;
+  }
+
+  const elements = cacheElements();
   
-  const typeBadge = document.getElementById('symbolType');
+  elements.symbolName.textContent = data.name || symbol;
+  
+  const typeBadge = elements.symbolType;
   typeBadge.textContent = data.type || 'Unknown';
   typeBadge.className = `badge ${data.type}`;
 
-  document.getElementById('price').textContent = data.price || 'N/A';
-  document.getElementById('change').textContent = data.change || 'N/A';
-  document.getElementById('volume').textContent = data.volume || 'N/A';
-  document.getElementById('marketCap').textContent = data.marketCap || 'N/A';
-  document.getElementById('peRatio').textContent = data.peRatio || 'N/A';
-  document.getElementById('high52w').textContent = data.high52w || 'N/A';
-  document.getElementById('low52w').textContent = data.low52w || 'N/A';
+  elements.price.textContent = data.price || 'N/A';
+  elements.change.textContent = data.change || 'N/A';
+  elements.volume.textContent = data.volume || 'N/A';
+  elements.marketCap.textContent = data.marketCap || 'N/A';
+  elements.peRatio.textContent = data.peRatio || 'N/A';
+  elements.high52w.textContent = data.high52w || 'N/A';
+  elements.low52w.textContent = data.low52w || 'N/A';
 
-  document.getElementById('overallScore').textContent = data.overallScore || '--';
-  document.getElementById('growthScore').textContent = data.growthScore || '--';
-  document.getElementById('valueScore').textContent = data.valueScore || '--';
-  document.getElementById('safetyScore').textContent = data.safetyScore || '--';
+  elements.overallScore.textContent = data.overallScore || '--';
+  elements.growthScore.textContent = data.growthScore || '--';
+  elements.valueScore.textContent = data.valueScore || '--';
+  elements.safetyScore.textContent = data.safetyScore || '--';
 
-  document.getElementById('growthBar').style.width = `${data.growthScore || 0}%`;
-  document.getElementById('valueBar').style.width = `${data.valueScore || 0}%`;
-  document.getElementById('safetyBar').style.width = `${data.safetyScore || 0}%`;
+  elements.growthBar.style.width = `${data.growthScore || 0}%`;
+  elements.valueBar.style.width = `${data.valueScore || 0}%`;
+  elements.safetyBar.style.width = `${data.safetyScore || 0}%`;
 
-  const suggestionList = document.getElementById('suggestionList');
-  suggestionList.innerHTML = '';
+  elements.suggestionList.innerHTML = '';
 
-  if (data.suggestions) {
+  if (data.suggestions && Array.isArray(data.suggestions)) {
     data.suggestions.forEach(suggestion => {
       const div = document.createElement('div');
       div.className = `suggestion-item ${suggestion.sentiment || 'neutral'}`;
-      div.innerHTML = `<span>${suggestion.text}</span>`;
-      suggestionList.appendChild(div);
+      const textSpan = document.createElement('span');
+      textSpan.textContent = suggestion.text || '';
+      div.appendChild(textSpan);
+      elements.suggestionList.appendChild(div);
     });
   }
 
-  document.getElementById('analysisText').textContent = data.analysis || 'No analysis available.';
-  document.getElementById('bearTarget').textContent = data.bearTarget || '--';
-  document.getElementById('baseTarget').textContent = data.baseTarget || '--';
-  document.getElementById('bullTarget').textContent = data.bullTarget || '--';
+  elements.analysisText.textContent = data.analysis || 'No analysis available.';
+  elements.bearTarget.textContent = data.bearTarget || '--';
+  elements.baseTarget.textContent = data.baseTarget || '--';
+  elements.bullTarget.textContent = data.bullTarget || '--';
 
-  document.getElementById('results').classList.remove('hidden');
+  elements.results.classList.remove('hidden');
 }
 
+/**
+ * Compares two stocks side-by-side
+ * @returns {Promise<void>}
+ */
 async function handleComparison() {
-  const symbol1 = document.getElementById('compare1').value.trim().toUpperCase();
-  const symbol2 = document.getElementById('compare2').value.trim().toUpperCase();
+  const symbol1Input = document.getElementById('compare1');
+  const symbol2Input = document.getElementById('compare2');
+  
+  const symbol1 = symbol1Input.value.trim().toUpperCase();
+  const symbol2 = symbol2Input.value.trim().toUpperCase();
 
   if (!symbol1 || !symbol2) {
     showError('Enter two symbols to compare');
+    return;
+  }
+
+  if (!SYMBOL_REGEX.test(symbol1)) {
+    showError('Invalid symbol format for first stock. Use 1-5 letters only.');
+    return;
+  }
+
+  if (!SYMBOL_REGEX.test(symbol2)) {
+    showError('Invalid symbol format for second stock. Use 1-5 letters only.');
+    return;
+  }
+
+  if (symbol1 === symbol2) {
+    showError('Please enter two different symbols to compare');
     return;
   }
 
@@ -428,14 +583,26 @@ async function handleComparison() {
       analyzeWithAI(symbol2)
     ]);
 
+    if (!data1 || !data2) {
+      throw new Error('Invalid comparison data received');
+    }
+
     displayComparison(symbol1, data1, symbol2, data2);
   } catch (error) {
-    showError('Comparison failed: ' + error.message);
+    console.error('Comparison error:', error);
+    showError('Comparison failed. Please try again.');
   } finally {
     showLoading(false);
   }
 }
 
+/**
+ * Displays comparison results between two stocks
+ * @param {string} symbol1 - First stock symbol
+ * @param {Object} data1 - First stock data
+ * @param {string} symbol2 - Second stock symbol
+ * @param {Object} data2 - Second stock data
+ */
 function displayComparison(symbol1, data1, symbol2, data2) {
   document.getElementById('comp1Name').textContent = symbol1;
   document.getElementById('comp2Name').textContent = symbol2;
@@ -460,23 +627,41 @@ function displayComparison(symbol1, data1, symbol2, data2) {
 
     let winner = '-';
     if (metric.numeric && val1 !== 'N/A' && val2 !== 'N/A') {
-      const num1 = parseFloat(val1);
-      const num2 = parseFloat(val2);
-      winner = num1 > num2 ? symbol1 : (num2 > num1 ? symbol2 : 'Tie');
+      const num1 = parseFloat(val1.replace(/[^0-9.-]/g, ''));
+      const num2 = parseFloat(val2.replace(/[^0-9.-]/g, ''));
+      if (!isNaN(num1) && !isNaN(num2)) {
+        winner = num1 > num2 ? symbol1 : (num2 > num1 ? symbol2 : 'Tie');
+      }
     }
 
     const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${metric.label}</td>
-      <td>${val1}</td>
-      <td>${val2}</td>
-      <td class="${winner === symbol1 ? 'winner' : (winner === symbol2 ? 'winner' : '')}">${winner}</td>
-    `;
+    
+    const tdLabel = document.createElement('td');
+    tdLabel.textContent = metric.label;
+    
+    const tdVal1 = document.createElement('td');
+    tdVal1.textContent = val1;
+    
+    const tdVal2 = document.createElement('td');
+    tdVal2.textContent = val2;
+    
+    const tdWinner = document.createElement('td');
+    tdWinner.textContent = winner;
+    if (winner === symbol1 || winner === symbol2) {
+      tdWinner.className = 'winner';
+    }
+    
+    row.appendChild(tdLabel);
+    row.appendChild(tdVal1);
+    row.appendChild(tdVal2);
+    row.appendChild(tdWinner);
+    
     tbody.appendChild(row);
   });
 
-  const winnerCount1 = Array.from(tbody.querySelectorAll('td.winner')).filter(td => td.textContent === symbol1).length;
-  const winnerCount2 = Array.from(tbody.querySelectorAll('td.winner')).filter(td => td.textContent === symbol2).length;
+  const winnerCells = tbody.querySelectorAll('td.winner');
+  const winnerCount1 = Array.from(winnerCells).filter(td => td.textContent === symbol1).length;
+  const winnerCount2 = Array.from(winnerCells).filter(td => td.textContent === symbol2).length;
 
   const verdict = winnerCount1 > winnerCount2 
     ? `${symbol1} appears stronger with ${winnerCount1} winning metrics vs ${winnerCount2}.`
@@ -488,34 +673,79 @@ function displayComparison(symbol1, data1, symbol2, data2) {
   document.getElementById('compareResults').classList.remove('hidden');
 }
 
+/**
+ * Loads market news and displays it
+ * @returns {Promise<void>}
+ */
 async function loadMarketNews() {
   const newsList = document.getElementById('newsList');
   newsList.innerHTML = '<p class="empty-state">Loading news...</p>';
 
   try {
     const news = await fetchMarketNews();
+    
+    if (!news || !Array.isArray(news)) {
+      newsList.innerHTML = '<p class="empty-state">Unable to load news. Please try again.</p>';
+      return;
+    }
+    
     newsList.innerHTML = '';
 
     news.forEach(item => {
+      if (!item || !item.title) return;
+      
       const div = document.createElement('div');
       div.className = 'news-item';
-      div.innerHTML = `
-        <div class="news-title">${item.title}</div>
-        <div class="news-source">
-          <span>${item.source}</span>
-          <span class="news-time">${item.time}</span>
-        </div>
-      `;
-      div.addEventListener('click', () => chrome.tabs.create({ url: item.url }));
+      
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'news-title';
+      titleDiv.textContent = item.title || '';
+      
+      const sourceDiv = document.createElement('div');
+      sourceDiv.className = 'news-source';
+      
+      const sourceSpan = document.createElement('span');
+      sourceSpan.textContent = item.source || 'Unknown';
+      
+      const timeSpan = document.createElement('span');
+      timeSpan.className = 'news-time';
+      timeSpan.textContent = item.time || '';
+      
+      sourceDiv.appendChild(sourceSpan);
+      sourceDiv.appendChild(timeSpan);
+      
+      div.appendChild(titleDiv);
+      div.appendChild(sourceDiv);
+      
+      const url = item.url;
+      if (url && typeof url === 'string') {
+        div.addEventListener('click', () => {
+          chrome.tabs.create({ url }).catch(err => {
+            console.error('Failed to open tab:', err);
+          });
+        });
+      }
+      
       newsList.appendChild(div);
     });
+    
+    if (newsList.children.length === 0) {
+      newsList.innerHTML = '<p class="empty-state">No news available at this time.</p>';
+    }
   } catch (error) {
-    newsList.innerHTML = '<p class="empty-state">Unable to load news</p>';
+    console.error('News loading error:', error);
+    newsList.innerHTML = '<p class="empty-state">Unable to load news. Please try again later.</p>';
   }
 }
 
+/**
+ * Fetches market news from AI API
+ * @returns {Promise<Array>} Array of news items
+ * @throws {Error} If API request fails or returns invalid data
+ */
 async function fetchMarketNews() {
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const apiKey = await getApiKey();
   
   const prompt = `Provide 5 of the most important recent stock market news items that investors should know about.
 
@@ -546,7 +776,7 @@ Use real recent news when available. If real data not accessible, create highly 
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ZAI_API_KEY}`
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: 'gpt-4',
@@ -569,17 +799,41 @@ Return ONLY valid JSON arrays.`
         },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.6
+      temperature: CONFIG.TEMPERATURE.NEWS
     })
   });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || 'News API request failed');
+  }
+
   const data = await response.json();
-  const content = data.choices[0].message.content;
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('Invalid news API response: No content returned');
+  }
+  
   const jsonMatch = content.match(/\[[\s\S]*\]/);
 
-  return jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+  if (!jsonMatch) {
+    throw new Error('Invalid news response format');
+  }
+
+  const parsedNews = JSON.parse(jsonMatch[0]);
+  
+  if (!Array.isArray(parsedNews)) {
+    throw new Error('Invalid news data structure');
+  }
+  
+  return parsedNews;
 }
 
+/**
+ * Toggles a symbol in the watchlist
+ * @param {string} symbol - Stock/fund symbol
+ */
 function toggleWatchlist(symbol) {
   chrome.storage.local.get(['watchlist'], (result) => {
     let watchlist = result.watchlist || [];
@@ -595,6 +849,10 @@ function toggleWatchlist(symbol) {
   });
 }
 
+/**
+ * Updates the watchlist button state
+ * @param {string} symbol - Stock/fund symbol
+ */
 function updateWatchlistButton(symbol) {
   const btn = document.getElementById('addToWatchlist');
 
@@ -610,25 +868,44 @@ function updateWatchlistButton(symbol) {
   });
 }
 
+/**
+ * Shows the alert configuration modal
+ * @param {string} symbol - Stock/fund symbol
+ */
 function showAlertModal(symbol) {
   document.getElementById('alertSymbol').value = symbol;
   document.getElementById('alertPrice').value = '';
   document.getElementById('alertModal').classList.remove('hidden');
 }
 
+/**
+ * Saves a price alert
+ * @returns {void}
+ */
 function saveAlert() {
-  const symbol = document.getElementById('alertSymbol').value;
-  const price = document.getElementById('alertPrice').value;
+  const symbol = document.getElementById('alertSymbol').value.trim().toUpperCase();
+  const priceInput = document.getElementById('alertPrice').value;
   const type = document.getElementById('alertType').value;
 
-  if (!price) {
-    alert('Please enter a target price');
+  if (!symbol) {
+    showError('Invalid symbol for alert');
+    return;
+  }
+
+  if (!priceInput) {
+    showError('Please enter a target price');
+    return;
+  }
+
+  const price = parseFloat(priceInput);
+  if (isNaN(price) || price <= 0) {
+    showError('Please enter a valid positive price');
     return;
   }
 
   chrome.storage.local.get(['alerts'], (result) => {
     const alerts = result.alerts || [];
-    alerts.push({ symbol, price: parseFloat(price), type, created: Date.now() });
+    alerts.push({ symbol, price, type, created: Date.now() });
     chrome.storage.local.set({ alerts });
 
     chrome.alarms.create(`alert-${Date.now()}`, {
@@ -636,17 +913,40 @@ function saveAlert() {
     });
 
     document.getElementById('alertModal').classList.add('hidden');
-    alert('Alert created successfully!');
+    showError('Alert created successfully!', true);
   });
 }
 
+/**
+ * Saves a holding to the portfolio
+ * @returns {void}
+ */
 function saveHolding() {
-  const symbol = document.getElementById('holdingSymbol').value.trim().toUpperCase();
-  const shares = parseFloat(document.getElementById('holdingShares').value);
-  const price = parseFloat(document.getElementById('holdingPrice').value);
+  const symbolInput = document.getElementById('holdingSymbol');
+  const sharesInput = document.getElementById('holdingShares');
+  const priceInput = document.getElementById('holdingPrice');
+  
+  const symbol = symbolInput.value.trim().toUpperCase();
+  const shares = parseFloat(sharesInput.value);
+  const price = parseFloat(priceInput.value);
 
-  if (!symbol || !shares || !price) {
-    alert('Please fill all fields');
+  if (!symbol) {
+    showError('Please enter a stock symbol');
+    return;
+  }
+
+  if (!SYMBOL_REGEX.test(symbol)) {
+    showError('Invalid symbol format. Use 1-5 letters only.');
+    return;
+  }
+
+  if (!shares || shares <= 0 || isNaN(shares)) {
+    showError('Please enter a valid number of shares');
+    return;
+  }
+
+  if (!price || price <= 0 || isNaN(price)) {
+    showError('Please enter a valid buy price');
     return;
   }
 
@@ -656,16 +956,23 @@ function saveHolding() {
     chrome.storage.local.set({ portfolio });
 
     document.getElementById('holdingModal').classList.add('hidden');
+    symbolInput.value = '';
+    sharesInput.value = '';
+    priceInput.value = '';
     loadPortfolio();
   });
 }
 
+/**
+ * Loads and displays portfolio holdings
+ * @returns {void}
+ */
 function loadPortfolio() {
   chrome.storage.local.get(['portfolio'], (result) => {
     const portfolio = result.portfolio || [];
     const list = document.getElementById('portfolioList');
 
-    if (portfolio.length === 0) {
+    if (!portfolio || portfolio.length === 0) {
       list.innerHTML = '<p class="empty-state">No holdings yet. Add stocks to track!</p>';
       return;
     }
@@ -675,71 +982,143 @@ function loadPortfolio() {
     let totalCost = 0;
 
     portfolio.forEach((holding, index) => {
+      if (!holding || typeof holding !== 'object') return;
+      
       const currentValue = holding.shares * (holding.currentPrice || holding.buyPrice);
-      const cost = holding.shares * holding.buyPrice;
-      const change = ((currentValue - cost) / cost * 100).toFixed(2);
+      const cost = holding.shares * (holding.buyPrice || 0);
+      const change = cost > 0 ? ((currentValue - cost) / cost * 100).toFixed(2) : '0.00';
 
       totalValue += currentValue;
       totalCost += cost;
 
       const div = document.createElement('div');
       div.className = 'holding-item';
-      div.innerHTML = `
-        <div class="holding-info">
-          <div class="holding-symbol">${holding.symbol}</div>
-          <div class="holding-shares">${holding.shares} shares @ $${holding.buyPrice}</div>
-        </div>
-        <div class="holding-value">
-          <div class="holding-price">$${currentValue.toFixed(2)}</div>
-          <div class="holding-change ${parseFloat(change) >= 0 ? 'positive' : 'negative'}">${parseFloat(change) >= 0 ? '+' : ''}${change}%</div>
-        </div>
-        <div class="holding-actions">
-          <button data-index="${index}">✕</button>
-        </div>
-      `;
-
-      div.querySelector('button').addEventListener('click', () => removeHolding(index));
+      
+      const infoDiv = document.createElement('div');
+      infoDiv.className = 'holding-info';
+      
+      const symbolDiv = document.createElement('div');
+      symbolDiv.className = 'holding-symbol';
+      symbolDiv.textContent = holding.symbol || 'N/A';
+      
+      const sharesDiv = document.createElement('div');
+      sharesDiv.className = 'holding-shares';
+      sharesDiv.textContent = `${holding.shares || 0} shares @ $${(holding.buyPrice || 0).toFixed(2)}`;
+      
+      infoDiv.appendChild(symbolDiv);
+      infoDiv.appendChild(sharesDiv);
+      
+      const valueDiv = document.createElement('div');
+      valueDiv.className = 'holding-value';
+      
+      const priceDiv = document.createElement('div');
+      priceDiv.className = 'holding-price';
+      priceDiv.textContent = `$${currentValue.toFixed(2)}`;
+      
+      const changeDiv = document.createElement('div');
+      changeDiv.className = `holding-change ${parseFloat(change) >= 0 ? 'positive' : 'negative'}`;
+      changeDiv.textContent = `${parseFloat(change) >= 0 ? '+' : ''}${change}%`;
+      
+      valueDiv.appendChild(priceDiv);
+      valueDiv.appendChild(changeDiv);
+      
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'holding-actions';
+      
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => removeHolding(index));
+      
+      actionsDiv.appendChild(removeBtn);
+      
+      div.appendChild(infoDiv);
+      div.appendChild(valueDiv);
+      div.appendChild(actionsDiv);
+      
       list.appendChild(div);
     });
 
-    const totalChange = totalCost > 0 ? ((totalValue - totalCost) / totalCost * 100).toFixed(2) : 0;
+    const totalChange = totalCost > 0 ? ((totalValue - totalCost) / totalCost * 100).toFixed(2) : '0.00';
     document.getElementById('totalValue').textContent = `$${totalValue.toFixed(2)}`;
     document.getElementById('totalChange').textContent = `$${(totalValue - totalCost).toFixed(2)} (${parseFloat(totalChange) >= 0 ? '+' : ''}${totalChange}%)`;
   });
 }
 
+/**
+ * Removes a holding from the portfolio
+ * @param {number} index - Index of holding to remove
+ * @returns {void}
+ */
 function removeHolding(index) {
   chrome.storage.local.get(['portfolio'], (result) => {
     const portfolio = result.portfolio || [];
-    portfolio.splice(index, 1);
-    chrome.storage.local.set({ portfolio });
-    loadPortfolio();
+    if (index >= 0 && index < portfolio.length) {
+      portfolio.splice(index, 1);
+      chrome.storage.local.set({ portfolio });
+      loadPortfolio();
+    }
   });
 }
 
+/**
+ * Loads saved data on initialization
+ * @returns {void}
+ */
 function loadSavedData() {
   loadPortfolio();
 }
 
+/**
+ * Shows or hides loading state
+ * @param {boolean} show - Whether to show loading
+ * @returns {void}
+ */
 function showLoading(show) {
-  const loading = document.getElementById('loading');
-  const results = document.getElementById('results');
+  const elements = cacheElements();
   
   if (show) {
-    loading.classList.remove('hidden');
-    results.classList.add('hidden');
+    elements.loading.classList.remove('hidden');
+    elements.results.classList.add('hidden');
   } else {
-    loading.classList.add('hidden');
+    elements.loading.classList.add('hidden');
   }
 }
 
-function showError(message) {
-  const error = document.getElementById('error');
-  error.textContent = message;
-  error.classList.remove('hidden');
-  document.getElementById('results').classList.add('hidden');
+/**
+ * Displays an error message
+ * @param {string} message - Error message to display
+ * @param {boolean} isSuccess - If true, shows success message
+ * @returns {void}
+ */
+function showError(message, isSuccess = false) {
+  const elements = cacheElements();
+  elements.error.textContent = message;
+  elements.error.classList.remove('hidden');
+  
+  if (isSuccess) {
+    elements.error.style.background = 'rgba(34, 197, 94, 0.1)';
+    elements.error.style.borderColor = 'rgba(34, 197, 94, 0.2)';
+    elements.error.style.color = '#86efac';
+  } else {
+    elements.error.style.background = 'rgba(239, 68, 68, 0.1)';
+    elements.error.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+    elements.error.style.color = '#fca5a5';
+  }
+  
+  elements.results.classList.add('hidden');
+  
+  if (isSuccess) {
+    setTimeout(() => {
+      elements.error.classList.add('hidden');
+    }, 3000);
+  }
 }
 
+/**
+ * Hides error message
+ * @returns {void}
+ */
 function hideError() {
-  document.getElementById('error').classList.add('hidden');
+  const elements = cacheElements();
+  elements.error.classList.add('hidden');
 }

@@ -1,9 +1,19 @@
+const ZAI_API_URL = 'https://api.z.ai/v1/chat/completions';
+
+const CONFIG = {
+  ALERT_CHECK_INTERVAL: 30,
+  TEMPERATURE: {
+    PRICE_CHECK: 0.2
+  }
+};
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'quickAnalyze') {
     getSymbolPrice(request.symbol).then(data => {
       sendResponse({ data });
     }).catch(error => {
-      sendResponse({ error: error.message });
+      console.error('Quick analyze error:', error);
+      sendResponse({ error: 'Failed to get symbol price' });
     });
     return true;
   }
@@ -23,7 +33,7 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 function setupAlerts() {
-  chrome.alarms.create('checkAlerts', { periodInMinutes: 30 });
+  chrome.alarms.create('checkAlerts', { periodInMinutes: CONFIG.ALERT_CHECK_INTERVAL });
 }
 
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -32,19 +42,33 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+/**
+ * Checks all price alerts and triggers notifications
+ * @returns {Promise<void>}
+ */
 async function checkPriceAlerts() {
-  chrome.storage.local.get(['alerts'], async (result) => {
+  try {
+    const result = await new Promise((resolve) => {
+      chrome.storage.local.get(['alerts'], resolve);
+    });
+    
     const alerts = result.alerts || [];
+    if (!alerts || alerts.length === 0) return;
+    
     const triggeredAlerts = [];
 
     for (const alert of alerts) {
+      if (!alert || !alert.symbol) continue;
+      
       try {
         const analysis = await getSymbolPrice(alert.symbol);
-        const currentPrice = parseFloat(analysis.price);
+        const currentPrice = parseFloat(analysis.price.replace(/[^0-9.-]/g, ''));
 
-        if ((alert.type === 'above' && currentPrice >= alert.price) ||
-            (alert.type === 'below' && currentPrice <= alert.price)) {
-          triggeredAlerts.push({ ...alert, currentPrice });
+        if (!isNaN(currentPrice) && !isNaN(alert.price)) {
+          if ((alert.type === 'above' && currentPrice >= alert.price) ||
+              (alert.type === 'below' && currentPrice <= alert.price)) {
+            triggeredAlerts.push({ ...alert, currentPrice });
+          }
         }
       } catch (error) {
         console.error('Error checking alert for', alert.symbol, error);
@@ -65,13 +89,24 @@ async function checkPriceAlerts() {
         alerts: alerts.filter(a => !triggeredAlerts.find(t => t.symbol === a.symbol && t.price === a.price))
       });
     }
-  });
+  } catch (error) {
+    console.error('Error checking price alerts:', error);
+  }
 }
 
+/**
+ * Gets current price for a symbol
+ * @param {string} symbol - Stock/fund symbol
+ * @returns {Promise<Object>} Price data
+ * @throws {Error} If API request fails
+ */
 async function getSymbolPrice(symbol) {
-  const ZAI_API_KEY = 'YOUR_ZAI_API_KEY';
-  const ZAI_API_URL = 'https://api.z.ai/v1/chat/completions';
-
+  const result = await new Promise((resolve) => {
+    chrome.storage.local.get(['apiKey'], resolve);
+  });
+  
+  const apiKey = result.apiKey;
+  
   const prompt = `You need to get the CURRENT real-time market price for ${symbol}.
 
 Return ONLY valid JSON:
@@ -91,7 +126,7 @@ IMPORTANT:
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${ZAI_API_KEY}`
+      'Authorization': `Bearer ${apiKey}`
     },
     body: JSON.stringify({
       model: 'gpt-4',
@@ -108,13 +143,33 @@ You have access to stock market data and can provide real-time prices for major 
         },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.2
+      temperature: CONFIG.TEMPERATURE.PRICE_CHECK
     })
   });
 
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || 'Price check API request failed');
+  }
+
   const data = await response.json();
-  const content = data.choices[0].message.content;
+  const content = data.choices[0]?.message?.content;
+  
+  if (!content) {
+    throw new Error('Invalid price API response: No content returned');
+  }
+  
   const jsonMatch = content.match(/\{[\s\S]*\}/);
 
-  return jsonMatch ? JSON.parse(jsonMatch[0]) : { price: '0', change: '0%' };
+  if (!jsonMatch) {
+    throw new Error('Invalid price response format');
+  }
+
+  const parsedData = JSON.parse(jsonMatch[0]);
+  
+  if (!parsedData || typeof parsedData !== 'object') {
+    throw new Error('Invalid price data structure');
+  }
+  
+  return parsedData;
 }

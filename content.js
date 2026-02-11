@@ -45,33 +45,59 @@ function isValidSymbol(symbol) {
 function createTooltip(symbol, x, y) {
   const tooltip = document.createElement('div');
   tooltip.className = 'stock-analyzer-tooltip';
-  tooltip.innerHTML = `
-    <div class="tooltip-header">
-      <span class="tooltip-symbol">${symbol}</span>
-      <button class="tooltip-close">×</button>
-    </div>
-    <div class="tooltip-loading">
-      <div class="tooltip-spinner"></div>
-      <span>Analyzing...</span>
-    </div>
-    <div class="tooltip-content hidden"></div>
-    <button class="tooltip-analyze">🔍 Full Analysis</button>
-  `;
+  
+  const headerDiv = document.createElement('div');
+  headerDiv.className = 'tooltip-header';
+  
+  const symbolSpan = document.createElement('span');
+  symbolSpan.className = 'tooltip-symbol';
+  symbolSpan.textContent = symbol;
+  
+  const closeButton = document.createElement('button');
+  closeButton.className = 'tooltip-close';
+  closeButton.textContent = '×';
+  closeButton.addEventListener('click', () => {
+    tooltip.remove();
+  });
+  
+  headerDiv.appendChild(symbolSpan);
+  headerDiv.appendChild(closeButton);
+  
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'tooltip-loading';
+  
+  const spinnerDiv = document.createElement('div');
+  spinnerDiv.className = 'tooltip-spinner';
+  
+  const loadingSpan = document.createElement('span');
+  loadingSpan.textContent = 'Analyzing...';
+  
+  loadingDiv.appendChild(spinnerDiv);
+  loadingDiv.appendChild(loadingSpan);
+  
+  const contentDiv = document.createElement('div');
+  contentDiv.className = 'tooltip-content hidden';
+  
+  const analyzeButton = document.createElement('button');
+  analyzeButton.className = 'tooltip-analyze';
+  analyzeButton.textContent = '🔍 Full Analysis';
+  analyzeButton.addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'openPopup', symbol }).catch(err => {
+      console.error('Failed to open popup:', err);
+    });
+    tooltip.remove();
+  });
+  
+  tooltip.appendChild(headerDiv);
+  tooltip.appendChild(loadingDiv);
+  tooltip.appendChild(contentDiv);
+  tooltip.appendChild(analyzeButton);
 
   tooltip.style.position = 'absolute';
   tooltip.style.left = `${Math.min(x, window.innerWidth - 280)}px`;
   tooltip.style.top = `${Math.min(y, window.innerHeight - 300)}px`;
 
   document.body.appendChild(tooltip);
-
-  tooltip.querySelector('.tooltip-close').addEventListener('click', () => {
-    tooltip.remove();
-  });
-
-  tooltip.querySelector('.tooltip-analyze').addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'openPopup', symbol });
-    tooltip.remove();
-  });
 
   fetchTooltipAnalysis(symbol, tooltip);
 
@@ -87,19 +113,35 @@ async function fetchTooltipAnalysis(symbol, tooltip) {
       const loading = tooltip.querySelector('.tooltip-loading');
       const content = tooltip.querySelector('.tooltip-content');
       
+      if (!loading || !content) return;
+      
       loading.classList.add('hidden');
       content.classList.remove('hidden');
       
       const changeClass = data.change && data.change.includes('-') ? 'negative' : 'positive';
       
-      content.innerHTML = `
-        <div class="tooltip-price">${data.price || 'N/A'}</div>
-        <div class="tooltip-change ${changeClass}">${data.change || 'N/A'}</div>
-        <div class="tooltip-score">Score: ${data.overallScore || '--'}/100</div>
-      `;
+      const priceDiv = document.createElement('div');
+      priceDiv.className = 'tooltip-price';
+      priceDiv.textContent = data.price || 'N/A';
+      
+      const changeDiv = document.createElement('div');
+      changeDiv.className = `tooltip-change ${changeClass}`;
+      changeDiv.textContent = data.change || 'N/A';
+      
+      const scoreDiv = document.createElement('div');
+      scoreDiv.className = 'tooltip-score';
+      scoreDiv.textContent = `Score: ${data.overallScore || '--'}/100`;
+      
+      content.appendChild(priceDiv);
+      content.appendChild(changeDiv);
+      content.appendChild(scoreDiv);
     }
   } catch (error) {
-    tooltip.querySelector('.tooltip-loading').innerHTML = '<span>Analysis unavailable</span>';
+    console.error('Tooltip analysis error:', error);
+    const loading = tooltip.querySelector('.tooltip-loading');
+    if (loading) {
+      loading.innerHTML = '<span>Analysis unavailable</span>';
+    }
   }
 }
 
