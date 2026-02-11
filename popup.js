@@ -2,7 +2,7 @@
  * Stock & Fund Analyzer Pro (India) - Popup Script
  * Main logic for Indian stock analysis, portfolio management, and price alerts
  * Supports NSE/BSE markets with Rupee (₹) pricing
- * @version 2.3.0
+ * @version 2.3.1 - Optimized prompts for better AI analysis
  */
 
 const ZAI_API_URL = 'https://api.z.ai/api/coding/paas/v4/chat/completions';
@@ -644,58 +644,103 @@ Please prioritize these aspects in your:
 `;
     }
 
-    const prompt = `You are a senior financial analyst. Analyze ${symbol} (Indian stock/mutual fund) thoroughly and provide the following data:
+    const prompt = `Analyze ${symbol} (NSE/BSE listed stock/mutual fund) and provide comprehensive financial data.
 
-CRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanations outside JSON.
+IMPORTANT INSTRUCTIONS:
+1. Return ONLY a valid JSON object - no markdown, no code blocks, no explanations
+2. Start your response with { and end with }
+3. All numerical scores must be integers between 0-100
+4. All prices must be realistic current market prices in Indian Rupees (₹)
+5. If you don't have exact data, use reasonable estimates based on recent market data
 
+REQUIRED JSON STRUCTURE:
 {
-  "type": "stock|fund|etf",
-  "name": "Complete company/fund name",
-  "exchange": "NSE/BSE",
-  "sector": "Technology/Healthcare/Finance/Consumer/Energy/etc",
-  "price": "Current price in ₹ (e.g., ₹2,456.75)",
-  "change": "Daily change % with sign (e.g., +2.34% or -1.15%)",
-  "volume": "Volume with format (e.g., 45.2L or 1.5Cr)",
-  "marketCap": "Market cap in ₹ (e.g., ₹12.5L Cr or ₹850K Cr)",
-  "peRatio": "P/E ratio (e.g., 28.5)",
+  "type": "stock",
+  "name": "Full company name (e.g., 'Reliance Industries Limited')",
+  "exchange": "NSE or BSE",
+  "sector": "Specific sector (e.g., 'Oil & Gas', 'Information Technology', 'Banking')",
+  "industry": "Specific industry (e.g., 'Refining & Petrochemicals', 'IT Services')",
+
+  "price": "Current market price in ₹ (e.g., ₹2,456.75)",
+  "change": "Today's change % with + or - sign (e.g., +2.34% or -1.15%)",
+  "volume": "Trading volume in Lakhs or Crores (e.g., 45.2L or 1.5Cr)",
+
+  "marketCap": "Market cap in ₹ Cr (e.g., ₹16,50,000 Cr or ₹16.5L Cr)",
+  "peRatio": "Current P/E ratio (e.g., 28.5)",
+  "pbRatio": "Price to Book ratio (e.g., 3.2)",
+  "dividendYield": "Annual dividend yield % (e.g., 1.2%)",
+  "roe": "Return on Equity % (e.g., 18.5%)",
+  "debtEquity": "Debt to Equity ratio (e.g., 0.45)",
+
   "high52w": "52-week high in ₹ (e.g., ₹2,890.50)",
   "low52w": "52-week low in ₹ (e.g., ₹1,850.20)",
-  "dividendYield": "Dividend yield % or N/A",
-  "beta": "Beta value (e.g., 1.25)",
+  "beta": "Beta coefficient (e.g., 1.25)",
+
   "analystRating": "Buy/Hold/Sell with firm name (e.g., 'Buy - Motilal Oswal')",
-  "priceTarget": "Analyst 12-month price target in ₹",
-  "expenseRatio": "Expense ratio % (for mutual funds/ETFs)",
-  "topHoldings": "Top 5 holdings (comma-separated)",
-  "etfType": "Type of ETF (e.g., 'Equity', 'Debt', 'Gold', 'International')",
+  "priceTarget": "12-month price target in ₹ (e.g., ₹2,800)",
+
   "overallScore": 0-100,
   "growthScore": 0-100,
   "valueScore": 0-100,
   "safetyScore": 0-100,
+
   "suggestions": [
-    {"text": "Specific actionable insight", "sentiment": "positive|negative|neutral", "category": "entry|exit|hold|risk|opportunity"},
-    {"text": "Another specific insight", "sentiment": "positive|negative|neutral", "category": "entry|exit|hold|risk|opportunity"},
-    {"text": "Third specific insight", "sentiment": "positive|negative|neutral", "category": "entry|exit|hold|risk|opportunity"}
+    {
+      "text": "Specific actionable insight with numbers and reasoning",
+      "sentiment": "positive or negative or neutral",
+      "category": "entry or exit or hold or risk or opportunity"
+    },
+    {
+      "text": "Another specific insight",
+      "sentiment": "positive or negative or neutral",
+      "category": "entry or exit or hold or risk or opportunity"
+    },
+    {
+      "text": "Third specific insight",
+      "sentiment": "positive or negative or neutral",
+      "category": "entry or exit or hold or risk or opportunity"
+    }
   ],
-  "analysis": "2-3 sentences covering recent performance, current trend, and key drivers. Be specific with numbers if possible.",
-  "bearTarget": "Price in ₹ (e.g., ₹2,200)",
-  "baseTarget": "Price in ₹ (e.g., ₹2,600)",
-  "bullTarget": "Price in ₹ (e.g., ₹3,000)"
+
+  "analysis": "2-3 sentences covering recent performance, key drivers, and important developments. Include specific numbers.",
+
+  "bearTarget": "₹2,200 - Key risk factors and downside scenario",
+  "baseTarget": "₹2,600 - Fair value based on fundamentals",
+  "bullTarget": "₹3,000 - Optimistic scenario with positive catalysts"
 }
 
-REQUIREMENTS:
-- Use REAL Indian market data from NSE/BSE as of ${currentDate}
-- All prices must be in Indian Rupees (₹)
-- Market cap in Lakhs/Crores format
-- Scores should be justified by fundamentals and technicals
-- Suggestions must be specific and actionable
-- Price targets should have 20-30% range from current price
-- If ${symbol} is a mutual fund, include expense ratio and top holdings
-- Include SEBI-registered analyst ratings and price targets when available
-- If ${symbol} is not a real ticker, analyze it as a hypothetical stock and mark type as "stock"
-- Focus on Indian market conditions and regulations
+SCORING METHODOLOGY:
+1. Growth Score (0-100): Revenue growth YoY, profit growth, expansion plans, sector outlook
+2. Value Score (0-100): P/E vs historical average, P/B vs industry, PEG ratio
+3. Safety Score (0-100): Promoter holding, debt levels, cash flow, profitability
+4. Overall Score: Weighted average (Growth 30%, Value 35%, Safety 35%)
+
+SUGGESTION EXAMPLES:
+- GOOD: "Consider accumulating on dips near ₹2,400 support. Strong fundamentals with ROE of 22% and low debt of 0.3. Near-term catalyst: Q4 earnings on March 15."
+- BAD: "Buy this stock, it will go up."
+
+PRICE TARGET METHODOLOGY:
+- Bear: Current price - (Volatility × 2) or worst-case fundamentals
+- Base: Fair value using DCF or PEG methodology
+- Bull: Optimistic growth projections and positive sector momentum
+
+DATA REQUIREMENTS:
+- Use REAL NSE/BSE market data as of ${currentDate}
+- Cross-reference with company financials and exchange filings
+- For mutual funds: Include expense ratio, top holdings, AUM
+- For stocks: Include latest quarterly results and guidance
+
+INDIAN MARKET SPECIFICS:
+- All prices in Indian Rupees (₹)
+- Market cap in Lakhs/Crores (1L = 100,000, 1Cr = 10,000,000)
+- Consider Indian market hours (9:15 AM - 3:30 PM IST)
+- Factor in SEBI guidelines and regulations
+- Consider FII/DII activity impact
+- Include upcoming corporate actions
+
 ${customFocus}
 
-Return ONLY the JSON object.`;
+RESPONSE FORMAT: Start with { end with } - ONLY valid JSON, nothing else.`;
 
     const response = await fetch(ZAI_API_URL, {
       method: 'POST',
@@ -708,27 +753,49 @@ Return ONLY the JSON object.`;
         messages: [
           {
             role: 'system',
-            content: `You are a senior financial analyst specializing in Indian stock markets (NSE/BSE) with 20+ years experience. You have access to current market data and specialize in:
-- Fundamental analysis (P/E, growth rates, earnings, Indian GAAP)
-- Technical analysis (trends, support/resistance, momentum)
-- Risk assessment (beta, volatility, sector exposure)
-- Investment recommendations (entry/exit points, portfolio fit)
-- Indian market regulations (SEBI guidelines)
-- Mutual fund analysis (expense ratios, AUM, fund performance)
+            content: `You are an expert financial analyst specializing in Indian equity markets (NSE/BSE) with deep expertise in:
 
-ANALYSIS GUIDELINES:
-1. Provide accurate, real Indian market data from NSE/BSE
-2. Use specific numbers and percentages
-3. All prices in Indian Rupees (₹)
-4. Market cap in Lakhs/Crores format
-5. Score based on: fundamentals (40%), technicals (30%), sentiment (30%)
-6. Give actionable suggestions with clear reasoning
-7. Price targets: Bear (downside risk), Base (expected), Bull (optimistic)
-8. Be objective - acknowledge both risks and opportunities
-9. Return ONLY valid JSON, no formatting
-10. When custom focus is provided, prioritize those aspects in analysis
+EXPERTISE AREAS:
+1. Fundamental Analysis
+   - Indian GAAP and Ind-AS accounting standards
+   - Quarterly result analysis and guidance interpretation
+   - Sector-specific metrics (NIM for banks, EBIDTA for infra)
 
-Current date: ${currentDate}`
+2. Technical Analysis
+   - Price action, support/resistance, trend analysis
+   - Indicators: RSI, MACD, Bollinger Bands, Moving Averages
+   - Volume analysis and breakouts
+
+3. Indian Market Dynamics
+   - FII/DII flow patterns and their impact
+   - Index weightage and rebalancing effects
+   - Regulatory environment (SEBI, RBI policies)
+
+4. Risk Assessment
+   - Promoter holding quality and pledge status
+   - Debt sustainability and interest coverage
+   - Sector-specific risks
+
+ANALYSIS FRAMEWORK:
+- Always provide data-backed reasoning
+- Include specific numbers, percentages, and timeframes
+- Consider both upside potential and downside risks
+- Factor in liquidity, volatility, and market sentiment
+
+SCORING PHILOSOPHY:
+- Be objective and balanced - no stock is perfect
+- Adjust scores based on sector context
+- Consider market cycle stage
+- Account for macro environment (interest rates, inflation, GDP)
+
+RESPONSE QUALITY STANDARDS:
+- Return ONLY valid JSON - test your JSON before responding
+- Use realistic, verifiable market data
+- If uncertain, use reasonable estimates
+- Ensure suggestions are actionable with clear reasoning
+
+Current date: ${currentDate}
+Market: NSE/BSE (Trading hours: 9:15 AM - 3:30 PM IST)`
           },
           { role: 'user', content: prompt }
         ],
@@ -1172,30 +1239,63 @@ async function fetchMarketNews() {
     const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
     const apiKey = await getApiKey();
 
-    const prompt = `Provide 5 of the most important recent Indian stock market news items that investors should know about.
+    const prompt = `Provide 5 of the most market-moving Indian stock market news items from the last 24-48 hours.
 
-Focus on:
-1. Major earnings reports from NSE/BSE listed companies
-2. Economic indicators (RBI decisions, inflation data, GDP growth)
-3. IT, banking, pharma, and auto sector developments
-4. Market-moving events (FII/DII activity, IPOs, corporate actions)
-5. Government policies affecting markets (budget, regulations)
+NEWS SELECTION CRITERIA (in order of importance):
+1. Index Heavyweights: News affecting Nifty 50/Sensex companies (>1% index weight)
+2. Broad Market Impact: RBI decisions, government policies, budget announcements
+3. Sector Themes: Major developments in IT, Banking, Pharma, Auto, Infrastructure
+4. Earnings Season: Quarterly results that significantly beat/miss expectations
+5. Corporate Actions: M&A, buybacks, delisting, stock splits, rights issues
+6. Macro Data: Inflation (CPI/WPI), GDP growth, IIP, trade deficit
+7. Global Impact: US Fed decisions, geopolitical events affecting Indian markets
+8. FII/DII Activity: Significant buying/selling patterns
+9. IPO/Listing: Major IPO announcements and market debuts
+10. Regulatory: SEBI circulars, exchange notices, circuit limit changes
 
-Return ONLY valid JSON array:
-
+REQUIRED JSON ARRAY:
 [
   {
-    "title": "News headline",
-    "source": "Economic Times/Moneycontrol/Business Standard/Livemint/etc",
-    "time": "Time relative to now (e.g., '2 hours ago', 'Today', 'Yesterday')",
-    "url": "https://example.com/article",
-    "impact": "high|medium|low",
-    "summary": "One sentence summary"
+    "title": "Concise, specific headline (max 80 characters)",
+    "source": "Specific source (e.g., 'Economic Times', 'Moneycontrol', 'Business Standard', 'Livemint')",
+    "time": "Exact time or relative (e.g., '2:30 PM IST', '4 hours ago', 'Yesterday')",
+    "category": "Earnings/Macro/Corporate/Regulatory/Sector/Global",
+    "impact": "high or medium or low",
+    "affectedStocks": ["RELIANCE", "TCS", "HDFCBANK"],
+    "affectedSectors": ["Oil & Gas", "Banking"],
+    "summary": "2-3 sentence summary with key numbers and market implications",
+    "sentiment": "bullish or bearish or neutral"
   }
 ]
 
-News date context: ${today}
-Use real recent Indian market news when available. If real data not accessible, create highly realistic news based on current Indian market conditions.`;
+NEWS QUALITY GUIDELINES:
+- Prioritize REAL news from credible Indian financial sources
+- Include specific numbers: percentages, rupee amounts, basis points
+- Mention specific stocks and sectors affected
+- Provide actionable insights for investors
+- Avoid duplicate or overlapping news
+- Focus on news that impacts portfolio decisions
+
+EXAMPLE HIGH-QUALITY ITEM:
+{
+  "title": "RBI holds repo rate at 6.5%, signals higher-for-longer stance",
+  "source": "Economic Times",
+  "time": "10:00 AM IST",
+  "category": "Macro",
+  "impact": "high",
+  "affectedStocks": ["HDFCBANK", "ICICIBANK", "SBIN"],
+  "affectedSectors": ["Banking", "NBFC", "Real Estate"],
+  "summary": "RBI kept repo rate unchanged at 6.5% for 6th consecutive meeting. Governor Das indicated rates to remain elevated due to food inflation concerns. Banking stocks declined with Nifty Bank falling 0.8%.",
+  "sentiment": "neutral"
+}
+
+NEWS DATE CONTEXT: ${today}
+
+IMPORTANT:
+- If real-time news unavailable, create realistic scenarios based on current market conditions
+- Ensure all news is relevant to Indian equity markets
+- Avoid generic news - focus on market-moving developments
+- Return ONLY the JSON array, no additional text`;
 
     const response = await fetch(ZAI_API_URL, {
       method: 'POST',
@@ -1208,18 +1308,49 @@ Use real recent Indian market news when available. If real data not accessible, 
         messages: [
           {
             role: 'system',
-            content: `You are a senior financial journalist working for a major Indian business news outlet. Your job is to:
-1. Identify the most market-relevant news for Indian investors
-2. Write compelling, accurate headlines
-3. Provide context on why it matters for NSE/BSE markets
-4. Be concise and actionable
+            content: `You are a senior financial journalist for a major Indian business news outlet specializing in stock market coverage.
 
-News items should be:
-- Recent (within 24-48 hours when possible)
-- Relevant to Indian stock markets (NSE/BSE)
-- Market-moving or significant
-- From credible Indian sources (ET, Moneycontrol, Business Standard, Livemint)
-- Clearly explained
+YOUR EXPERTISE:
+1. NSE/BSE Market Analysis
+   - Index movements and drivers
+   - Sector performance trends
+   - FII/DII activity patterns
+
+2. Corporate News
+   - Quarterly earnings and guidance
+   - M&A, buybacks, corporate actions
+   - Management interviews and commentary
+
+3. Macro Coverage
+   - RBI monetary policy
+   - Government budget and policies
+   - Economic indicators (GDP, inflation, IIP)
+
+4. Global Markets
+   - US Fed and global central banks
+   - Commodity prices (oil, gold)
+   - Currency movements (USD/INR)
+
+NEWS CURATION PRINCIPLES:
+- Prioritize market-moving news over general business news
+- Include specific numbers and data points
+- Mention affected stocks and sectors
+- Provide actionable context for investors
+- Focus on recent developments (24-48 hours)
+
+NEWS SOURCES:
+- Economic Times, Moneycontrol, Business Standard, Livemint
+- Press Trust of India (PTI)
+- Exchange filings (NSE/BSE)
+- Company press releases
+- SEBI/RBI announcements
+
+QUALITY STANDARDS:
+- Accurate headlines (max 80 characters)
+- Specific time stamps
+- Clear impact assessment
+- Relevant stock mentions
+- Balanced sentiment analysis
 
 Return ONLY valid JSON arrays.`
           },

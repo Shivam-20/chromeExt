@@ -241,21 +241,37 @@ async function getSymbolPrice(symbol) {
 
     const apiKey = result.apiKey;
 
-    const prompt = `You need to get the CURRENT real-time market price for ${symbol} (Indian stock/mutual fund).
+    const prompt = `Get the CURRENT real-time market price for ${symbol} traded on NSE/BSE.
 
-Return ONLY valid JSON:
+ACCURACY REQUIREMENTS:
+1. Use the most recent traded price from NSE/BSE
+2. If market is closed (after 3:30 PM IST or weekend/holiday), use closing price
+3. Verify the stock symbol is valid on NSE/BSE
+4. Include change calculation from previous close
+
+REQUIRED JSON:
 {
-  "price": "Current price in ₹ (e.g., ₹2,456.75)",
-  "change": "Daily change % with sign (e.g., +2.34% or -1.15%)"
+  "symbol": "${symbol}",
+  "exchange": "NSE or BSE",
+  "price": "Current/Last price in ₹ (e.g., ₹2,456.75)",
+  "change": "Today's change % with + or - sign (e.g., +2.34% or -1.15%)"
 }
 
-IMPORTANT:
-- Use the most recent Indian market data available from NSE/BSE
-- Price must be in Indian Rupees (₹)
-- Price should be the current trading price or last close
-- Change should be today's percentage change
-- If market is closed, use the last closing price
-- Return ONLY the JSON object, no other text`;
+DATA VALIDATION:
+- Price must be a realistic market price (not zero or unrealistic)
+- Change should be calculated from previous close
+- All prices in Indian Rupees (₹)
+
+EXAMPLE:
+{
+  "symbol": "RELIANCE",
+  "exchange": "NSE",
+  "price": "₹2,456.75",
+  "change": "+1.88%"
+}
+
+Current time: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+Return ONLY the JSON object, no other text.`;
 
     const response = await fetch(ZAI_API_URL, {
       method: 'POST',

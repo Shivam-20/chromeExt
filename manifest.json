@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Stock & Fund Analyzer Pro (India)",
-  "version": "2.3.0",
-  "description": "Advanced AI-powered Indian stock, mutual fund, and ETF analytics for NSE/BSE markets with portfolio tracking, alerts, and Rupee-based analysis. Now with improved rate limit handling.",
+  "version": "2.3.1",
+  "description": "Advanced AI-powered Indian stock, mutual fund, and ETF analytics for NSE/BSE markets with optimized prompts for better analysis quality.",
   "permissions": [
     "activeTab",
     "storage",
